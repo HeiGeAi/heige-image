@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="zh-CN" data-accent="heige-blush">
+<head>
+  <meta charset="utf-8">
+  <title>heige-image · 封面模板 cover-clean</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    /* =========================================================
+       heige-image · cover-clean
+       guizang 简约设计风 · 公众号 / 文章 / 小红书封面
+       ---------------------------------------------------------
+       基座学 guizang-social-card-skill 的瑞士 / 编辑杂志质感：
+       暖米白底 + 单一强调色 + 越大越细字号反差 + 发丝线网格 + 零装饰。
+       默认强调色是黑哥暖粉 heige-blush，跟粘土签名同一套暖色家族，
+       让两条引擎出来的图在配色上认得出是一家。
+       Playwright 截 .poster 节点出图，逻辑同 render.py。
+       ---------------------------------------------------------
+       文字全部走 {{变量}} 占位，render.py 注入；
+       这里填的是示例数据，浏览器直接打开能看。
+       字体无外链，中文系统字体栈兜底，离线不崩。
+       ========================================================= */
+
+    /* ---------- 1. 强调色（默认黑哥暖粉，其余三套备用，整组只选一） ---------- */
+    /* 黑哥暖粉 heige-blush：暖米白纸 + 暖粉强调，对齐粘土签名的暖色域 */
+    :root,
+    [data-accent="heige-blush"] {
+      --paper:#F6ECE4; --ink:#3D2B2B;
+      --grey-1:#EFE3D9; --grey-2:#DDCFC2; --grey-3:#9A8478;
+      --accent:#E98AA0; --accent-on:#FBF3EC;
+    }
+    [data-accent="ikb"] {
+      --paper:#fafaf8; --ink:#0a0a0a;
+      --grey-1:#f0f0ee; --grey-2:#d4d4d2; --grey-3:#737373;
+      --accent:#002FA7; --accent-on:#ffffff;
+    }
+    [data-accent="lemon-yellow"] {
+      --paper:#fafaf8; --ink:#0a0a0a;
+      --grey-1:#f0f0ee; --grey-2:#d4d4d2; --grey-3:#737373;
+      --accent:#FFD500; --accent-on:#0a0a0a;
+    }
+    [data-accent="lemon-green"] {
+      --paper:#fafaf8; --ink:#0a0a0a;
+      --grey-1:#f0f0ee; --grey-2:#d4d4d2; --grey-3:#737373;
+      --accent:#C5E803; --accent-on:#0a0a0a;
+    }
+    [data-accent="safety-orange"] {
+      --paper:#fafaf8; --ink:#0a0a0a;
+      --grey-1:#f0f0ee; --grey-2:#d4d4d2; --grey-3:#737373;
+      --accent:#FF6B35; --accent-on:#ffffff;
+    }
+
+    /* ---------- 2. 字体栈（无外链，中文系统字体兜底） ---------- */
+    :root {
+      --sans:    "Helvetica Neue", Helvetica, Arial,
+                 "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei",
+                 "Noto Sans SC", sans-serif;
+      --sans-zh: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei",
+                 "Noto Sans SC", "Helvetica Neue", Arial, sans-serif;
+      --mono:    ui-monospace, "SF Mono", "Menlo", Consolas,
+                 "Courier New", monospace;
+    }
+
+    /* ---------- 3. 间距 token（8/12/16/24/32/40/48/64/80/96/160） ---------- */
+    :root {
+      --sp-3:8px;  --sp-4:12px; --sp-5:16px; --sp-6:24px; --sp-7:32px;
+      --sp-8:40px; --sp-9:48px; --sp-10:64px; --sp-11:80px;
+      --sp-12:96px; --sp-13:160px;
+    }
+
+    /* ---------- 4. Reset & 画板 ---------- */
+    *,*::before,*::after { box-sizing:border-box; }
+    html, body { margin:0; padding:0; }
+    body {
+      background:#1a1a1a;
+      font-family:var(--sans);
+      color:var(--ink);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      padding:64px 32px;
+    }
+    .sheet { display:flex; flex-direction:column; align-items:center; gap:48px; }
+
+    /* ---------- 5. 固定尺寸板 ---------- */
+    .poster {
+      position:relative;
+      background:var(--paper);
+      color:var(--ink);
+      overflow:hidden;
+      isolation:isolate;
+    }
+    .poster.xhs    { width:1080px; height:1440px; }
+    .poster.square { width:1080px; height:1080px; }
+    .poster.wide   { width:2100px; height:900px; }
+
+    .poster.xhs    .content { padding:var(--sp-12) var(--sp-11); }
+    .poster.square .content { padding:var(--sp-11) var(--sp-11); }
+    .poster.wide   .content { padding:var(--sp-11) var(--sp-13); }
+    .content { position:relative; width:100%; height:100%; z-index:2; }
+
+    /* ---------- 6. 排版角色（越大越细） ---------- */
+    .h-statement {
+      font-family:var(--sans);
+      font-weight:200; font-size:180px; line-height:1.05;
+      letter-spacing:-.015em; margin:0; color:var(--ink);
+    }
+    .h-xl {
+      font-family:var(--sans);
+      font-weight:300; font-size:120px; line-height:1.08;
+      letter-spacing:-.01em; margin:0; color:var(--ink);
+    }
+    .lead {
+      font-family:var(--sans-zh);
+      font-weight:400; font-size:30px; line-height:1.55;
+      color:var(--ink); margin:0;
+    }
+    .t-cat {
+      font-family:var(--sans);
+      font-weight:600; font-size:22px; letter-spacing:.08em;
+      text-transform:uppercase; color:var(--accent); margin:0;
+    }
+    .t-meta {
+      font-family:var(--mono);
+      font-weight:500; font-size:20px; letter-spacing:.14em;
+      text-transform:uppercase; color:var(--grey-3); margin:0;
+    }
+    .num-mega {
+      font-family:var(--sans);
+      font-weight:200; font-size:200px; line-height:.92;
+      letter-spacing:-.03em; color:var(--accent); margin:0;
+    }
+
+    /* 竖板 3:4 降一档 */
+    .poster.xhs .h-statement { font-size:124px; }
+    .poster.xhs .h-xl        { font-size:96px; }
+    .poster.xhs .num-mega    { font-size:160px; }
+    /* 方板 1:1 */
+    .poster.square .h-statement { font-size:140px; }
+    .poster.square .h-xl        { font-size:88px; }
+    .poster.square .num-mega    { font-size:168px; }
+    /* 宽板 21:9 */
+    .poster.wide .h-statement   { font-size:156px; }
+    .poster.wide .h-xl          { font-size:104px; }
+
+    /* ---------- 7. 版式 primitive ---------- */
+    .stack { display:flex; flex-direction:column; }
+    .row   { display:flex; flex-direction:row; }
+    .gap-5 { gap:var(--sp-5); }
+    .gap-6 { gap:var(--sp-6); }
+    .gap-7 { gap:var(--sp-7); }
+    .gap-9 { gap:var(--sp-9); }
+    .grow  { flex:1; }
+    .hr-accent {
+      height:3px; background:var(--accent); border:0; width:96px; margin:0;
+    }
+
+    /* ---------- 8. 顶栏发丝线 ---------- */
+    .chrome-min {
+      display:flex; justify-content:space-between; align-items:center;
+      font-family:var(--mono);
+      font-size:18px; letter-spacing:.14em; text-transform:uppercase;
+      color:var(--grey-3);
+      padding-bottom:var(--sp-6);
+      border-bottom:1px solid var(--grey-2);
+      margin-bottom:var(--sp-9);
+    }
+  </style>
+</head>
+<body>
+  <!--
+    用法：
+    1. <html data-accent="…"> 切强调色：heige-blush（默认，黑哥暖粉）| ikb | lemon-yellow | lemon-green | safety-orange，整张只用一个。
+    2. 尺寸切板：把 .poster 的 xhs / square / wide 换掉。render.py 默认竖板 xhs。
+    3. 文字 {{变量}}：
+       {{ACCENT}}      强调色名（写到 data-accent，render.py 注入）
+       {{CATEGORY}}    顶栏左·类目（中文 · 英文短标）
+       {{DATE}}        顶栏右·日期 / 期号
+       {{KICKER}}      accent 色 kicker（英文全大写或中文短标）
+       {{TITLE}}       主标题，语义断点用 <br> 手动断行
+       {{LEAD}}        一句克制说明
+       {{ISSUE}}       底栏期号
+       {{AUTHOR}}      底栏作者
+    4. 标题太长砍字，不许缩字号。竖板标题 ≤6 字最稳，7-10 字考虑换行。
+  -->
+  <main class="sheet">
+
+    <!-- 公众号 / 小红书封面 默认竖板 3:4 -->
+    <section class="poster xhs" id="cover">
+      <div class="content stack">
+        <div class="chrome-min">
+          <span>黑哥AI · HEIGE</span>
+          <span>2026.06</span>
+        </div>
+
+        <div class="stack gap-7">
+          <p class="t-cat">封面 · COVER</p>
+          <h1 class="h-statement">三步<br>把流程<br>跑通</h1>
+        </div>
+
+        <div class="grow"></div>
+
+        <hr class="hr-accent">
+        <p class="lead" style="margin-top:var(--sp-7)">把一件重复做的事拆成可复现的三步，剩下的交给脚本。</p>
+
+        <div class="row gap-6" style="margin-top:var(--sp-9)">
+          <p class="t-meta">Issue 01</p>
+          <p class="t-meta">/ 黑哥AI</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>

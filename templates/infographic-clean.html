@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="zh-CN" data-accent="heige-blush">
+<head>
+  <meta charset="utf-8">
+  <title>heige-image · 信息图模板 infographic-clean</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    /* =========================================================
+       heige-image · infographic-clean
+       guizang 简约设计风 · 要点 / 对比 / 流程 / 数据清单
+       ---------------------------------------------------------
+       基座学 guizang-social-card-skill 的瑞士 / 编辑杂志质感。
+       一个模板用 CSS 类切四种数据形态：
+         matrix-fill   4-8 个并列要点
+         h-bar-chart   5-10 项排名 / 对比横条
+         pipeline      3-5 步流程
+         stacked-ledger 4-6 项带数字清单
+       底部可选 hero-stat-bottom 汇总数。
+       暖米白底 + 单一强调色 + 越大越细 + 发丝线网格 + 零装饰形状。
+       默认强调色是黑哥暖粉 heige-blush，跟粘土签名同一套暖色家族。
+       ---------------------------------------------------------
+       文字全部走 {{变量}} 占位，render.py 注入；
+       这里填示例数据，浏览器直接打开能看；
+       字体无外链，中文系统字体兜底，离线不崩。
+       ========================================================= */
+
+    /* ---------- 1. 强调色（默认黑哥暖粉，其余三套备用，整组只选一） ---------- */
+    /* 黑哥暖粉 heige-blush：暖米白纸 + 暖粉强调，对齐粘土签名的暖色域 */
+    :root,
+    [data-accent="heige-blush"] {
+      --paper:#F6ECE4; --ink:#3D2B2B;
+      --grey-1:#EFE3D9; --grey-2:#DDCFC2; --grey-3:#9A8478;
+      --accent:#E98AA0; --accent-on:#FBF3EC;
+    }
+    [data-accent="ikb"] {
+      --paper:#fafaf8; --ink:#0a0a0a;
+      --grey-1:#f0f0ee; --grey-2:#d4d4d2; --grey-3:#737373;
+      --accent:#002FA7; --accent-on:#ffffff;
+    }
+    [data-accent="lemon-yellow"] {
+      --paper:#fafaf8; --ink:#0a0a0a;
+      --grey-1:#f0f0ee; --grey-2:#d4d4d2; --grey-3:#737373;
+      --accent:#FFD500; --accent-on:#0a0a0a;
+    }
+    [data-accent="lemon-green"] {
+      --paper:#fafaf8; --ink:#0a0a0a;
+      --grey-1:#f0f0ee; --grey-2:#d4d4d2; --grey-3:#737373;
+      --accent:#C5E803; --accent-on:#0a0a0a;
+    }
+    [data-accent="safety-orange"] {
+      --paper:#fafaf8; --ink:#0a0a0a;
+      --grey-1:#f0f0ee; --grey-2:#d4d4d2; --grey-3:#737373;
+      --accent:#FF6B35; --accent-on:#ffffff;
+    }
+
+    /* ---------- 2. 字体栈（无外链，中文系统字体兜底） ---------- */
+    :root {
+      --sans:    "Helvetica Neue", Helvetica, Arial,
+                 "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei",
+                 "Noto Sans SC", sans-serif;
+      --sans-zh: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei",
+                 "Noto Sans SC", "Helvetica Neue", Arial, sans-serif;
+      --mono:    ui-monospace, "SF Mono", "Menlo", Consolas,
+                 "Courier New", monospace;
+    }
+
+    /* ---------- 3. 间距 token ---------- */
+    :root {
+      --sp-3:8px;  --sp-4:12px; --sp-5:16px; --sp-6:24px; --sp-7:32px;
+      --sp-8:40px; --sp-9:48px; --sp-10:64px; --sp-11:80px;
+      --sp-12:96px; --sp-13:160px;
+    }
+
+    /* ---------- 4. Reset & 画板 ---------- */
+    *,*::before,*::after { box-sizing:border-box; }
+    html, body { margin:0; padding:0; }
+    body {
+      background:#1a1a1a;
+      font-family:var(--sans);
+      color:var(--ink);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      padding:64px 32px;
+    }
+    .sheet { display:flex; flex-direction:column; align-items:center; gap:48px; }
+
+    /* ---------- 5. 固定尺寸板 ---------- */
+    .poster {
+      position:relative;
+      background:var(--paper);
+      color:var(--ink);
+      overflow:hidden;
+      isolation:isolate;
+    }
+    .poster.xhs    { width:1080px; height:1440px; }
+    .poster.square { width:1080px; height:1080px; }
+    .poster.wide   { width:2100px; height:900px; }
+
+    .poster.xhs    .content { padding:var(--sp-12) var(--sp-11); }
+    .poster.square .content { padding:var(--sp-11) var(--sp-11); }
+    .poster.wide   .content { padding:var(--sp-11) var(--sp-13); }
+    .content { position:relative; width:100%; height:100%; z-index:2;
+               display:flex; flex-direction:column; }
+
+    /* ---------- 6. 排版角色 ---------- */
+    .h-xl {
+      font-family:var(--sans);
+      font-weight:300; font-size:120px; line-height:1.08;
+      letter-spacing:-.01em; margin:0; color:var(--ink);
+    }
+    .lead {
+      font-family:var(--sans-zh);
+      font-weight:400; font-size:30px; line-height:1.55;
+      color:var(--ink); margin:0;
+    }
+    .body {
+      font-family:var(--sans-zh);
+      font-weight:400; font-size:26px; line-height:1.6;
+      color:var(--ink); margin:0;
+    }
+    .t-cat {
+      font-family:var(--sans);
+      font-weight:600; font-size:22px; letter-spacing:.08em;
+      text-transform:uppercase; color:var(--accent); margin:0;
+    }
+    .t-meta {
+      font-family:var(--mono);
+      font-weight:500; font-size:20px; letter-spacing:.14em;
+      text-transform:uppercase; color:var(--grey-3); margin:0;
+    }
+    .num-mega {
+      font-family:var(--sans);
+      font-weight:200; font-size:200px; line-height:.92;
+      letter-spacing:-.03em; color:var(--accent); margin:0;
+    }
+    .poster.xhs .h-xl     { font-size:96px; }
+    .poster.xhs .num-mega { font-size:128px; line-height:1; }
+    .poster.square .h-xl  { font-size:88px; }
+
+    /* ---------- 7. 版式 primitive ---------- */
+    .stack { display:flex; flex-direction:column; }
+    .row   { display:flex; flex-direction:row; }
+    .gap-4 { gap:var(--sp-4); }
+    .gap-5 { gap:var(--sp-5); }
+    .gap-6 { gap:var(--sp-6); }
+    .gap-7 { gap:var(--sp-7); }
+    .gap-9 { gap:var(--sp-9); }
+    .hr-accent {
+      height:3px; background:var(--accent); border:0; width:96px; margin:0;
+    }
+    /* 顶部固定头与内容块、可选底部 stat 三段，段间 48px */
+    .info-head { margin-bottom:var(--sp-9); }
+    .info-block { /* 内容块自身按形态高度，不用 flex:1 上下夹击 */ }
+
+    /* ========== 形态 A：matrix-fill 并列要点 ========== */
+    .matrix-fill {
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      grid-auto-rows:min-content;
+      gap:var(--sp-5);
+    }
+    .matrix-fill .matrix-cell {
+      background:var(--grey-1);
+      padding:var(--sp-6);
+      display:flex; flex-direction:column; gap:var(--sp-4);
+    }
+    .matrix-fill .matrix-cell .cell-nb {
+      font-family:var(--mono);
+      font-size:18px; letter-spacing:.12em; color:var(--grey-3);
+    }
+    .matrix-fill .matrix-cell .cell-title {
+      font-family:var(--sans-zh);
+      font-weight:500; font-size:26px; line-height:1.3; color:var(--ink);
+    }
+    .matrix-fill .matrix-cell.is-accent {
+      background:var(--accent); color:var(--accent-on);
+    }
+    .matrix-fill .matrix-cell.is-accent .cell-nb,
+    .matrix-fill .matrix-cell.is-accent .cell-title { color:var(--accent-on); }
+
+    /* ========== 形态 B：h-bar-chart 横条排名 ========== */
+    .h-bar-chart { display:grid; gap:var(--sp-6); }
+    .h-bar-chart .bar-row {
+      display:grid;
+      grid-template-columns:1fr;
+      gap:var(--sp-4);
+      align-items:center;
+    }
+    .h-bar-chart .bar-row .row-lbl {
+      font-family:var(--sans-zh);
+      font-weight:500; font-size:26px; color:var(--ink);
+    }
+    .h-bar-chart .bar-row .row-track {
+      position:relative; height:28px; background:var(--grey-1);
+    }
+    .h-bar-chart .bar-row .row-fill {
+      position:absolute; left:0; top:0; bottom:0;
+      width:var(--w,50%); background:var(--accent);
+    }
+    .h-bar-chart .bar-row .row-val {
+      font-family:var(--mono);
+      font-weight:500; font-size:26px; letter-spacing:.04em; color:var(--ink);
+    }
+
+    /* ========== 形态 C：pipeline 流程 ========== */
+    .pipeline { display:flex; flex-direction:column; }
+    .pipeline .step-row {
+      display:grid;
+      grid-template-columns:auto 1fr;
+      gap:var(--sp-6);
+      align-items:baseline;
+      padding:var(--sp-7) 0;
+      border-bottom:1px solid var(--grey-2);
+    }
+    .pipeline .step-row:first-child { padding-top:0; }
+    .pipeline .step-row:last-child  { border-bottom:0; }
+    .pipeline .step-nb {
+      font-family:var(--mono);
+      font-weight:500; font-size:24px; letter-spacing:.12em; color:var(--accent);
+    }
+    .pipeline .step-title {
+      font-family:var(--sans-zh);
+      font-weight:500; font-size:32px; line-height:1.25; color:var(--ink);
+      margin:0 0 var(--sp-4);
+    }
+    .pipeline .step-desc {
+      font-family:var(--sans-zh);
+      font-weight:400; font-size:24px; line-height:1.5; color:var(--grey-3);
+      margin:0;
+    }
+
+    /* ========== 形态 D：stacked-ledger 数字清单 ========== */
+    .stacked-ledger { display:flex; flex-direction:column; }
+    .stacked-ledger .ledger-row {
+      display:grid;
+      grid-template-columns:280px 1fr;
+      gap:var(--sp-7);
+      align-items:baseline;
+      padding:var(--sp-7) 0;
+      border-bottom:1px solid var(--grey-2);
+    }
+    .stacked-ledger .ledger-row:first-child { padding-top:0; }
+    .stacked-ledger .ledger-row:last-child  { border-bottom:0; }
+    .stacked-ledger .ledger-num {
+      font-family:var(--sans);
+      font-weight:200; font-size:112px; line-height:1;
+      letter-spacing:-.02em; color:var(--ink); margin:0;
+    }
+    .stacked-ledger .ledger-lbl {
+      font-family:var(--sans-zh);
+      font-weight:500; font-size:30px; line-height:1.3; color:var(--ink);
+    }
+    .stacked-ledger .ledger-lbl .sub {
+      display:block; font-weight:400; font-size:22px;
+      color:var(--grey-3); margin-top:var(--sp-3);
+    }
+    .poster.square .stacked-ledger .ledger-num { font-size:88px; }
+    .poster.square .stacked-ledger .ledger-row { grid-template-columns:220px 1fr; }
+
+    /* ---------- 8. 可选底部汇总数 ---------- */
+    .hero-stat-bottom {
+      margin-top:var(--sp-9);
+      padding-top:var(--sp-7);
+      border-top:1px solid var(--grey-2);
+      display:grid;
+      grid-template-columns:1fr auto;
+      align-items:center;
+      gap:var(--sp-7);
+    }
+  </style>
+</head>
+<body>
+  <!--
+    用法：
+    1. <html data-accent="…"> 切强调色：heige-blush（默认，黑哥暖粉）| ikb | lemon-yellow | lemon-green | safety-orange，整张只用一个。
+    2. 尺寸切板：把 .poster 的 xhs / square / wide 换掉，render.py 默认竖板 xhs。
+    3. 形态四选一：把 .info-block 里的内容换成 matrix-fill / h-bar-chart / pipeline / stacked-ledger 其中一种，别混用。
+    4. 文字 {{变量}}：
+       {{KICKER}}      页头 accent kicker
+       {{PAGE_TITLE}}  页标题，竖板 ≤2 行×8 字，超了砍字别缩字号
+       矩阵：{{NB_n}} 编号 / {{ITEM_n}} 要点；最多 1 格加 class="matrix-cell is-accent"
+       横条：{{LBL_n}} 标签 / {{VAL_n}} 数值 / row-fill 的 --w:NN% 设条长
+       流程：{{STEP_n}} 编号 / {{STEP_TITLE_n}} 标题 / {{STEP_DESC_n}} 一行说明
+       清单：{{NUM_n}} 大数字 / {{LABEL_n}} 标签 / {{SUB_n}} 副行
+       汇总：{{STAT_KICKER}} / {{STAT_LEAD}} / {{STAT_NUM}}（必须和上面对得上，不许编）
+    5. 内容必须吃满 ≥75% 画布高度，禁用 flex:1 上下夹击塞中段。假数据假百分比禁止。
+  -->
+  <main class="sheet">
+
+    <!-- 信息图 默认竖板 3:4 · 示例用 matrix-fill 形态 -->
+    <section class="poster xhs" id="infographic">
+      <div class="content">
+
+        <!-- 页头：kicker + 页标题 -->
+        <div class="info-head stack gap-6">
+          <p class="t-cat">要点 · KEY POINTS</p>
+          <h1 class="h-xl">脚本能<br>替你干的</h1>
+          <hr class="hr-accent" style="margin-top:var(--sp-3)">
+        </div>
+
+        <!-- 内容块：matrix-fill 并列要点（六格是甜点） -->
+        <div class="info-block">
+          <div class="matrix-fill">
+            <div class="matrix-cell is-accent">
+              <span class="cell-nb">01</span>
+              <span class="cell-title">批量重命名文件</span>
+            </div>
+            <div class="matrix-cell">
+              <span class="cell-nb">02</span>
+              <span class="cell-title">定时抓取数据</span>
+            </div>
+            <div class="matrix-cell">
+              <span class="cell-nb">03</span>
+              <span class="cell-title">自动生成日报</span>
+            </div>
+            <div class="matrix-cell">
+              <span class="cell-nb">04</span>
+              <span class="cell-title">图片压缩转格式</span>
+            </div>
+            <div class="matrix-cell">
+              <span class="cell-nb">05</span>
+              <span class="cell-title">表格清洗去重</span>
+            </div>
+            <div class="matrix-cell">
+              <span class="cell-nb">06</span>
+              <span class="cell-title">接口监控告警</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 可选底部汇总数 -->
+        <div class="hero-stat-bottom">
+          <div class="stack gap-5">
+            <p class="t-cat">每天省下</p>
+            <p class="body">把这六件事交给脚本，手动操作直接清零。</p>
+          </div>
+          <p class="num-mega">6</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!--
+      其余三种形态骨架，按需把 .info-block 整块替换：
+
+      横条 h-bar-chart（每条 --w 设长度）：
+      <div class="info-block">
+        <div class="h-bar-chart">
+          <div class="bar-row"><span class="row-lbl">通义千问</span>
+            <div class="row-track"><div class="row-fill" style="--w:92%"></div></div>
+            <span class="row-val">92</span></div>
+          ……
+        </div>
+      </div>
+
+      流程 pipeline（3-5 步）：
+      <div class="info-block">
+        <div class="pipeline">
+          <div class="step-row"><span class="step-nb">01</span>
+            <div><p class="step-title">拆步骤</p><p class="step-desc">把重复动作写成清单。</p></div></div>
+          ……
+        </div>
+      </div>
+
+      数字清单 stacked-ledger（4-6 项）：
+      <div class="info-block">
+        <div class="stacked-ledger">
+          <div class="ledger-row"><p class="ledger-num">3×</p>
+            <span class="ledger-lbl">提速三倍<span class="sub">同样的活，三分之一时间</span></span></div>
+          ……
+        </div>
+      </div>
+    -->
+
+  </main>
+</body>
+</html>

@@ -1,0 +1,23 @@
+# 用户私有配置（运行时落在 ~/.heige-image/，本就不在仓库里，这里只是显式声明）
+.heige-image/
+config.json
+
+# 生成的图片，留住占位文件方便陌生人 clone 下来目录就在
+outimage/*.png
+outimage/*.jpg
+outimage/*.jpeg
+outimage/*.webp
+!outimage/.gitkeep
+
+# 实际产出的规格文件不进仓库，只保留示例（01-开头的那篇是 demo，得留）
+prompts/*.md
+!prompts/01-*.md
+!prompts/.gitkeep
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 系统垃圾
+.DS_Store
