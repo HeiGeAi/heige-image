@@ -572,6 +572,14 @@ def main():
             if "prompt" not in t or "output" not in t:
                 print(f"错误: 任务 #{i + 1} 缺少必填字段 prompt 或 output", file=sys.stderr)
                 sys.exit(1)
+            ar = t.get("aspect_ratio")
+            if ar is not None and ar not in VALID_ASPECT_RATIOS:
+                print(
+                    f"错误: 任务 #{i + 1} 的 aspect_ratio 非法: {ar!r}，"
+                    f"可选值: {', '.join(VALID_ASPECT_RATIOS)}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
 
         results = generate_batch(
             tasks=tasks,
