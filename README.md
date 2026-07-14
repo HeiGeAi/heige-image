@@ -162,8 +162,6 @@ The free layout engine needs only Playwright, no API key at all.
 ## 许可证 License
 
 MIT，Copyright (c) 2026 HeiGeAi (Blake Xu)。详见 [LICENSE](./LICENSE)。
-</content>
-</invoke>
 
 ## 更多开源工具
 

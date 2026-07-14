@@ -104,6 +104,17 @@ def _report(path: Path) -> None:
     print(f"[heige-render] 出图 {dim_str} | {size_kb:.0f}KB -> {path}")
 
 
+def _output_is_directory(output_path: str | None) -> bool:
+    """判断 -o 是目录语义。
+
+    目录尚未存在时，Path 无法单独判断，所以保留 README 示例里末尾
+    斜杠的信号。同时兼容 Windows 的反斜杠。
+    """
+    if not output_path:
+        return False
+    return output_path.endswith(("/", "\\")) or Path(output_path).is_dir()
+
+
 # ---------------------------------------------------------------------------
 # 核心渲染
 # ---------------------------------------------------------------------------
@@ -194,7 +205,11 @@ def render(
             return written
 
         # -o 怎么解释：只有一个节点时当成文件名；多个节点时当成目录（每张按 id 命名）
-        single_named = output_path is not None and len(posters) == 1
+        single_named = (
+            output_path is not None
+            and len(posters) == 1
+            and not _output_is_directory(output_path)
+        )
         if single_named:
             out_dir = Path(output_path).parent
         elif output_path:
