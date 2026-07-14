@@ -92,7 +92,7 @@ description: 黑哥AI 的中文设计生图产品，按图类型路由（不按 
 | 图类型 | 特征 | 走哪条引擎 | 脚本 | key |
 |--------|------|-----------|------|-----|
 | **版式图（封面/信息图/卡片，文字要逐字精确）** | 文字是主角，标题、术语、副标题一个字都不能错 | **无 key 版式渲染引擎**（guizang 简约设计）：选 HTML 模板→填真实数据→Playwright 截图 | `scripts/render.py` | 不要 key，免费 |
-| **插画 / 概念图 / 吉祥物示意图** | 文字少（≤30%）或纯视觉，靠画面叙事 | **API 插画引擎**（粘土 3D 卡通）：编译英文 prompt 送 gpt-image 类模型 | `scripts/gen.py` | 要 key（自己配 base_url + key，接任意 OpenAI 兼容 API） |
+| **插画 / 概念图 / 吉祥物示意图** | 文字少（≤30%）或纯视觉，靠画面叙事 | **API 插画引擎**（粘土 3D 卡通）：编译英文 prompt 送 gpt-image 类模型 | `scripts/gen.py` | 要 key（OpenAI 官方，或符合 Bearer 认证与 `/images/generations` 固定契约的兼容渠道） |
 
 **怎么判断走哪条**：看设计脑第一步翻出来的「文字层级」这一维。
 
@@ -180,7 +180,7 @@ python3 scripts/render.py templates/cover-clean.html --node "#cover" --scale 2 -
 **首次用要装依赖**（脚本检测到没装会再提示一遍）：
 
 ```bash
-pip install playwright && playwright install chromium
+python3 -m pip install playwright && python3 -m playwright install chromium
 ```
 
 **headless 已焊好的坑**：脚本默认带 `--use-angle=swiftshader`，否则 SVG / WebGL 滤镜在无头模式下会截成空白。截图前等 `document.fonts.ready` 再多停 800ms，避开截到 fallback 字体那一帧。这两个坑学的 guizang，已经焊进 render.py，调用方不用管。
@@ -191,7 +191,13 @@ pip install playwright && playwright install chromium
 
 插画/概念图/吉祥物示意图走这条，出粘土 3D 卡通风。设计脑三步走完、规格文件落好，由脚本出图。
 
-**接口通用，自己配 base_url + key + model**。脚本走 OpenAI 兼容的图像生成接口，三项配置方式都一样，优先级从高到低：命令行 > 环境变量 > 配置文件 > 默认值。
+先给当前 Python 解释器安装依赖：
+
+```bash
+python3 -m pip install httpx
+```
+
+**接口契约固定，自己配 base_url + key + model**。脚本支持 OpenAI 官方，或符合 Bearer 认证与 `/images/generations` 固定契约的兼容渠道。三项配置方式都一样，优先级从高到低：命令行 > 环境变量 > 配置文件 > 默认值。
 
 | 配置项 | 命令行 | 环境变量 | 默认值 |
 |--------|--------|----------|--------|
@@ -205,9 +211,11 @@ pip install playwright && playwright install chromium
 {"base_url": "https://api.openai.com/v1", "api_key": "sk-xxx", "model": "gpt-image-2"}
 ```
 
-官方 OpenAI、Azure、各家中转都能接，填自己那把就行。
+当前支持 OpenAI 官方，或遵循同一套 Bearer 认证与 `/images/generations` 路径契约的兼容渠道。Azure 当前未原生适配，因为 Azure 通常要求 `api-key`、deployment 路径和 `api-version`。
 
-> 国内想直接出图、不想自己折腾通道，可以用 gptx.cc 这个渠道，base_url 填 `https://api.gptx.cc/v1` 加上自己的 key 即可，作为推荐选项之一，不写死也不强制。
+**API 引擎只交付静态 PNG，不支持 APNG。** `-o` 和批量任务的 `output` 必须以 `.png` 结尾。脚本会在落盘前完整校验 PNG 签名、chunk CRC、像素流和 50 MiB 体积上限。渠道返回 APNG、JPEG、WebP、HTML 错误页或截断数据时，必须将它当成失败，不要改扩展名绕过校验。
+
+> 国内想直接出图、不想自己折腾通道，可以评估 gptx.cc。使用前要确认它当前仍符合 Bearer 认证与 `/images/generations` 固定契约；确认后 base_url 填 `https://api.gptx.cc/v1`，再使用自己的 key。它只是推荐选项，不写死也不强制。
 
 **主推：规格驱动出图**
 
@@ -231,7 +239,11 @@ python3 scripts/gen.py --batch tasks.json --workers 2
 
 `tasks.json` 是数组，每项 `{"prompt": "...", "output": "outimage/xx.png", "aspect_ratio": "16:9"}`。批量张数超 `--max-n`（默认 6）会被成本护栏直接拦。
 
-**比例只有三个真实桶**：横→1536×1024、竖→1024×1536、方→1024×1024。写 `21:9` 跟写 `16:9` 出来一样大，比例是构图意图不是像素。章节图 / 16:9 总结图都走横桶 `-ar 16:9`，小红书插画走竖桶 `-ar 3:4`。
+默认自动重试为 0，因为生图 POST 无幂等承诺。只有显式传入 `--retry N` 才会重试；超时时上游可能已经生成并计费，再试可能重复生成、重复计费。`--max-n` 只限制目标张数；显式重试会增加实际请求次数，不受该张数上限代替约束。
+
+批量任务的 `output` 必须互不重复。脚本会在发起任何 API 请求前归一化绝对路径、`..` 和符号链接父目录，因此不要用路径别名指向同一文件。
+
+**本脚本固定只开放三个尺寸桶**：横→1536×1024、竖→1024×1536、方→1024×1024。写 `21:9` 跟写 `16:9` 出来一样大，比例是构图意图，不代表模型本身只支持这三档。章节图 / 16:9 总结图都走横桶 `-ar 16:9`，小红书插画走竖桶 `-ar 3:4`。
 
 ---
 
@@ -251,7 +263,7 @@ python3 scripts/gen.py --batch tasks.json --workers 2
 
 API 引擎烧的是真额度，两道护栏卡死：
 
-- **单次张数上限**：`scripts/gen.py --max-n` 默认 6，批量超了直接拦。要调高得明确知道在烧多少钱。一组配图压在 6 张内。
+- **单次目标张数上限**：`scripts/gen.py --max-n` 默认 6，批量目标超了直接拦。它不是实际请求次数上限；若显式开启重试，每个目标都可能多发请求并重复计费。一组配图压在 6 张内。
 - **回炉最多 1 轮**：出图后过体检清单，中招就回炉重出，**最多回炉 1 轮**。1 轮还不行就降级处理（换主体重写 prompt，或老实承认这张不该用 API 做），别无限重试烧钱。
 
 ---
@@ -265,13 +277,13 @@ API 引擎烧的是真额度，两道护栏卡死：
 
 **各自需要什么**：
 
-- 版式引擎要 Playwright + chromium（`pip install playwright && playwright install chromium`），装一次到处用，不要 API key。
-- API 引擎要一把能用的 key（自己配 base_url + key，接任意 OpenAI 兼容 API，国内可选 gptx.cc 这个渠道）。没 key 设计脑前三步照跑，能交付规格文件，就是出不了图。
+- 版式引擎要 Playwright + chromium（`python3 -m pip install playwright && python3 -m playwright install chromium`），装一次到处用，不要 API key。
+- API 引擎要一把能用的 key（OpenAI 官方，或符合 Bearer 认证与 `/images/generations` 固定契约的兼容渠道；国内可评估 gptx.cc）。没 key 设计脑前三步照跑，能交付规格文件，就是出不了图。
 
 **还是不做**：
 
 - **API 引擎的图里文字别指望写对**，压在 30% 以内且默认可能拼错。要可读正确的文字走版式引擎那条。
-- **API 引擎尺寸只有三种**，别信脚本里那十种比例，全映射到方/横/竖三个桶。要真正超宽幅/精确画幅 API 做不到，版式引擎可以在 CSS 里焊任意尺寸。
+- **本脚本的 API 引擎固定只开放三种尺寸**，十种比例全映射到方/横/竖三个桶。这是兼容渠道的脚本策略，不是模型硬限制。如需超宽幅或精确画幅，先确认当前渠道支持，再扩展 `ASPECT_SIZE_MAP`；版式引擎也可以在 CSS 里焊任意尺寸。
 - **粘土质感的复杂画面别用版式引擎硬拼**，HTML 截图只到「简约版式 + 精确文字」这层，要手工粘土治愈插画交给 API 引擎。
 - **不串别人画风**，只出黑哥这两套（插画粘土 3D、版式 guizang 简约），废弃旧版波普拼贴讽刺。
 

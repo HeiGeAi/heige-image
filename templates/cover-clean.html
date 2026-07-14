@@ -15,7 +15,7 @@
        让两条引擎出来的图在配色上认得出是一家。
        Playwright 截 .poster 节点出图，逻辑同 render.py。
        ---------------------------------------------------------
-       文字全部走 {{变量}} 占位，render.py 注入；
+       文字全部走 {{变量}} 占位，使用前在 HTML 中手工替换；
        这里填的是示例数据，浏览器直接打开能看。
        字体无外链，中文系统字体栈兜底，离线不崩。
        ========================================================= */
@@ -171,7 +171,7 @@
     1. <html data-accent="…"> 切强调色：heige-blush（默认，黑哥暖粉）| ikb | lemon-yellow | lemon-green | safety-orange，整张只用一个。
     2. 尺寸切板：把 .poster 的 xhs / square / wide 换掉。render.py 默认竖板 xhs。
     3. 文字 {{变量}}：
-       {{ACCENT}}      强调色名（写到 data-accent，render.py 注入）
+       {{ACCENT}}      强调色名（手工写到 data-accent）
        {{CATEGORY}}    顶栏左·类目（中文 · 英文短标）
        {{DATE}}        顶栏右·日期 / 期号
        {{KICKER}}      accent 色 kicker（英文全大写或中文短标）

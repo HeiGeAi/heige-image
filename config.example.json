@@ -1,6 +1,6 @@
 {
   "_说明": "复制这份模板成 ~/.heige-image/config.json，把占位值换成你自己的。gen.py 默认读这个路径。",
-  "_base_url": "OpenAI 兼容的图像生成接口地址。官方填 https://api.openai.com/v1，任意中转填中转给的地址。国内想直接生成，可以用 gptx.cc 这个渠道（OpenAI 兼容，base_url 填 https://api.gptx.cc/v1）。",
+  "_base_url": "OpenAI 官方填 https://api.openai.com/v1。其他渠道仅在确认使用 Bearer 认证并符合 base_url + /images/generations 固定契约时可用。国内可评估 gptx.cc（base_url 填 https://api.gptx.cc/v1），使用前也要核对当前契约。",
   "_api_key": "你的 key，跟 base_url 配套。换了渠道记得连 key 一起换。",
   "_model": "图像模型名，默认 gpt-image-2。中转或官方支持别的模型就改成对应名字。",
   "_优先级": "三项都能被环境变量（HEIGE_IMAGE_BASE_URL / HEIGE_IMAGE_API_KEY / HEIGE_IMAGE_MODEL）和命令行参数覆盖，优先级 命令行 > 环境变量 > 本文件 > 默认值。",

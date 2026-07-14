@@ -55,10 +55,10 @@ git clone https://github.com/HeiGeAi/heige-image.git ~/.claude/skills/heige-imag
 
 ```bash
 # 版式渲染引擎 render.py（免费、不要 key）需要 Playwright
-pip install playwright && playwright install chromium
+python3 -m pip install playwright && python3 -m playwright install chromium
 
 # API 插画引擎 gen.py 需要 httpx
-pip install httpx
+python3 -m pip install httpx
 ```
 
 只想用免费版式图，装 Playwright 就够，连 API key 都不用配。
@@ -67,7 +67,9 @@ pip install httpx
 
 只有 API 插画引擎（`scripts/gen.py`）要配 key，版式渲染引擎（`scripts/render.py`）零 API、免费，跳过这一步也能用。
 
-**接口走 OpenAI 兼容的图像生成协议，你自己配 `base_url` + `api_key` + `model` 三项。** 官方 OpenAI、Azure、各家中转都能接，填自己那把就行，不写死任何渠道。三项配置三种方式，优先级从高到低：命令行 > 环境变量 > 配置文件 > 默认值。
+**接口走固定的 OpenAI 图像生成请求契约，你自己配 `base_url` + `api_key` + `model` 三项。** 当前支持 OpenAI 官方，或遵循同一套 Bearer 认证与 `/images/generations` 路径契约的兼容渠道。Azure 当前未原生适配，因为 Azure 通常要求 `api-key`、deployment 路径和 `api-version`。三项配置三种方式，优先级从高到低：命令行 > 环境变量 > 配置文件 > 默认值。
+
+**API 引擎的文件契约是静态 PNG，不支持 APNG。** 输出路径必须以 `.png` 结尾。脚本会在落盘前校验 PNG 签名、chunk CRC、完整像素流和 50 MiB 体积上限；返回 APNG、JPEG、WebP、HTML 错误页、截断文件或超大数据的兼容渠道会被明确拒绝。
 
 | 配置项 | 命令行 | 环境变量 | 默认值 |
 |--------|--------|----------|--------|
@@ -81,9 +83,9 @@ pip install httpx
 {"base_url": "https://api.openai.com/v1", "api_key": "sk-xxx", "model": "gpt-image-2"}
 ```
 
-接 OpenAI 官方就用上面这份，base_url 换成你的中转地址就接中转，模型名按你渠道实际支持的填。
+接 OpenAI 官方就用上面这份。兼容渠道仅限使用 Bearer 认证，并以 `base_url + /images/generations` 接收同形请求、返回同形响应的渠道；模型名按渠道实际支持的值填写。
 
-> 国内想直接出图、不想自己折腾通道，可以用 gptx.cc 这个渠道作为推荐选项之一。它是 OpenAI 兼容接口，base_url 填 `https://api.gptx.cc/v1`，加上你自己的 key 即可。这只是推荐，不写死也不强制，你完全可以换成任意官方或中转渠道。
+> 国内想直接出图、不想自己折腾通道，可以评估 gptx.cc。使用前仍要确认它当前符合 Bearer 认证与 `/images/generations` 固定契约；base_url 填 `https://api.gptx.cc/v1`，并使用你自己的 key。这只是推荐，不写死也不强制。
 
 ## 3️⃣ 怎么用
 
@@ -123,7 +125,11 @@ python3 scripts/gen.py --prompt "完整英文 prompt" -ar 16:9 -o outimage/test.
 python3 scripts/gen.py --batch tasks.json --workers 2
 ```
 
-比例只有三个真实桶：横→1536×1024、竖→1024×1536、方→1024×1024，比例参数是构图意图不是像素。
+默认自动重试为 0，因为生图 POST 无幂等承诺。只有显式传入 `--retry N` 才会重试；超时时上游可能已经生成并计费，再试可能重复生成、重复计费。`--max-n` 只限制目标张数；显式重试会增加实际请求次数，不受该张数上限代替约束。
+
+`tasks.json` 中的所有 `output` 也必须是 `.png`。启动请求前，脚本会对绝对路径、`..` 和符号链接父目录做归一化，拒绝任何会覆盖同一文件的重复任务。
+
+本脚本为兼容不同渠道，固定只开放三个尺寸桶：横→1536×1024、竖→1024×1536、方→1024×1024。比例参数是构图意图，不代表模型本身只支持这三档。
 
 ---
 
@@ -134,22 +140,24 @@ heige-image is a Chinese-first design image generation skill for agents like Cla
 Two engines, routed by image type rather than by API key:
 
 - **Layout images** (covers, infographics, cards where text must be pixel-perfect) go through a free, zero-API HTML rendering engine (`scripts/render.py`). HTML and CSS weld the text onto the page, Playwright screenshots it. Free, no quota burn, Chinese text never breaks.
-- **Illustrations and concept art** (visual storytelling, little text) go through the API engine (`scripts/gen.py`), which compiles a reproducible English prompt spec and sends it to any OpenAI-compatible image API.
+- **Illustrations and concept art** (visual storytelling, little text) go through the API engine (`scripts/gen.py`), which compiles a reproducible English prompt spec and sends it to OpenAI official or a compatible provider that implements the same Bearer-authenticated `/images/generations` contract.
 
-**The API engine is provider-agnostic.** You configure `base_url` + `api_key` + `model` yourself (CLI > env var > config file > default). Works with OpenAI official, Azure, or any compatible relay. Config file at `~/.heige-image/config.json`:
+**The API engine uses one fixed request contract.** You configure `base_url` + `api_key` + `model` yourself (CLI > env var > config file > default). It supports OpenAI official and compatible relays that use Bearer authentication with the `/images/generations` path. Azure-specific `api-key`, deployment routing, and `api-version` are not natively adapted. Config file at `~/.heige-image/config.json`:
 
 ```json
 {"base_url": "https://api.openai.com/v1", "api_key": "sk-xxx", "model": "gpt-image-2"}
 ```
 
-If you are in mainland China and want to generate without setting up your own channel, gptx.cc is one recommended option (OpenAI-compatible, set `base_url` to `https://api.gptx.cc/v1` plus your own key). It is a suggestion, not hardcoded or required.
+The API engine has a static-PNG-only output contract and rejects APNG. It also rejects non-`.png` paths, duplicate normalized batch destinations, non-PNG or truncated responses, and payloads larger than 50 MiB before writing a file.
+
+If you are in mainland China, you may evaluate gptx.cc. Before use, verify that its current API still follows the Bearer-authenticated `/images/generations` contract; if it does, set `base_url` to `https://api.gptx.cc/v1` and use your own key. It is a suggestion, not hardcoded or required.
 
 Install by cloning into your Claude Code skill directory:
 
 ```bash
 git clone https://github.com/HeiGeAi/heige-image.git ~/.claude/skills/heige-image
-pip install playwright && playwright install chromium   # for render.py
-pip install httpx                                        # for gen.py
+python3 -m pip install playwright && python3 -m playwright install chromium   # for render.py
+python3 -m pip install httpx                                                # for gen.py
 ```
 
 The free layout engine needs only Playwright, no API key at all.
@@ -157,7 +165,7 @@ The free layout engine needs only Playwright, no API key at all.
 ## 致谢 Credits
 
 - 无 key 版式渲染引擎（`render.py` + `templates/*-clean.html`）的种子 HTML + Playwright 截图机制，受 guizang 的瑞士 / 编辑杂志简约风启发，已踩的无头模式 SVG 滤镜空白、字体兜底等坑焊进了实现。
-- 生图走 OpenAI 兼容的图像生成接口，模型与具体渠道由使用者自行配置。
+- 生图走固定的 Bearer 认证与 `/images/generations` 请求契约，模型与符合该契约的具体渠道由使用者自行配置。
 
 ## 许可证 License
 
