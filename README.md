@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.0-F5A8B8)
+![Version](https://img.shields.io/badge/version-1.1.0-F5A8B8)
 ![Claude Skill](https://img.shields.io/badge/Claude-Skill-FBF3EC)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
@@ -57,7 +57,7 @@ git clone https://github.com/HeiGeAi/heige-image.git ~/.claude/skills/heige-imag
 # 版式渲染引擎 render.py（免费、不要 key）需要 Playwright
 pip install playwright && playwright install chromium
 
-# API 插画引擎 gen.py 需要 httpx
+# API 引擎 gen.py（文生图）和 edit.py（图生图）需要 httpx
 pip install httpx
 ```
 
