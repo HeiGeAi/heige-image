@@ -125,6 +125,23 @@ python3 scripts/gen.py --batch tasks.json --workers 2
 
 比例只有三个真实桶：横→1536×1024、竖→1024×1536、方→1024×1024，比例参数是构图意图不是像素。
 
+**图生图 / 图片编辑（改已有的图，走 API 引擎）**
+
+单图编辑，上传一张图 + 一句改法：
+
+```bash
+python3 scripts/edit.py --input photo.jpg --prompt "把背景换成雪景，人物姿态不变" -ar 3:4 -o outimage/edited.png
+```
+
+多图输入，`--input` 可重复传：图1 是基底图，图2 及之后是人脸 / 风格参考图，prompt 里按「图1/图2」指代：
+
+```bash
+python3 scripts/edit.py --input scene.jpg --input face.jpg \
+  --prompt "以图1为场景基底，把图2的人物自然融入画面" -ar 16:9 -o outimage/merged.png
+```
+
+批量模式和 gen.py 同款 `--batch tasks.json`，任务里的 `input` 字段接受字符串（单图）或数组（多图）。配置三项（base_url / api_key / model）与 gen.py 完全一致。
+
 ---
 
 ## English
@@ -135,6 +152,7 @@ Two engines, routed by image type rather than by API key:
 
 - **Layout images** (covers, infographics, cards where text must be pixel-perfect) go through a free, zero-API HTML rendering engine (`scripts/render.py`). HTML and CSS weld the text onto the page, Playwright screenshots it. Free, no quota burn, Chinese text never breaks.
 - **Illustrations and concept art** (visual storytelling, little text) go through the API engine (`scripts/gen.py`), which compiles a reproducible English prompt spec and sends it to any OpenAI-compatible image API.
+- **Image editing** (`scripts/edit.py`) hits the `/images/edits` endpoint: single-image edits, plus multi-image input by repeating `--input` (first image is the base, later ones are face/style references; refer to them as 图1/图2 in the prompt). Batch JSON accepts a string or an array in the `input` field.
 
 **The API engine is provider-agnostic.** You configure `base_url` + `api_key` + `model` yourself (CLI > env var > config file > default). Works with OpenAI official, Azure, or any compatible relay. Config file at `~/.heige-image/config.json`:
 
@@ -162,9 +180,7 @@ The free layout engine needs only Playwright, no API key at all.
 ## 许可证 License
 
 MIT，Copyright (c) 2026 HeiGeAi (Blake Xu)。详见 [LICENSE](./LICENSE)。
-</content>
-</invoke>
 
 ## 更多开源工具
 
-本项目属于黑哥 AI 的开源武器库。全部开源项目的清单、用途和协议,见 [heigeai.com/opensource](https://www.heigeai.com/opensource/)。
+本项目属于黑哥 AI 的开源武器库。全部开源项目的清单、用途和协议，见 [heigeai.com/opensource](https://www.heigeai.com/opensource/)。
