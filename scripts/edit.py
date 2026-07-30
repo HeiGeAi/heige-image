@@ -14,7 +14,7 @@ API 通用化设计（与 gen.py 完全一致的配置约定）：
 脚本特性：
   - ASPECT_SIZE_MAP 三尺寸映射（方 / 横 / 竖），扩散模型实际只出这三种
   - multipart/form-data 上传原图，图片 < 10MB，支持 jpg/jpeg/png/webp/gif
-  - 下载加 follow_redirects=True，绕开 301 跳转掉图的坑（和 gen.py 一致）
+  - 下载使用有界流式读取并跟随重定向，避免 301 掉图和超大响应耗尽内存
   - --input + --prompt：单张编辑；--input 可重复传入实现多图输入
   - 单图走 image 字段，多图走多个 image[] 字段（两种 multipart 形态服务端都认）
   - --batch：并发批量编辑，JSON 任务格式，input 字段接受字符串或数组
@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import io
 import json
 import mimetypes
@@ -63,6 +64,25 @@ try:
 except ImportError:
     print("错误: 需要 httpx 库，请执行: pip install httpx", file=sys.stderr)
     sys.exit(1)
+
+try:
+    from .image_output import (
+        ImageResponseError,
+        OutputPathError,
+        atomic_write_image,
+        validate_image_bytes,
+        validate_image_response,
+        validate_output_path,
+    )
+except ImportError:
+    from image_output import (
+        ImageResponseError,
+        OutputPathError,
+        atomic_write_image,
+        validate_image_bytes,
+        validate_image_response,
+        validate_output_path,
+    )
 
 # ---------------------------------------------------------------------------
 # 渠道配置（通用：对接任意 OpenAI 兼容图像编辑 API，与 gen.py 同一套约定）
@@ -271,6 +291,10 @@ def _edit_core(
     tag = f"[heige-image 编辑{' ' + task_label if task_label else ''}]"
     if output_path is None:
         output_path = str(OUTPUT_DIR / "output.png")
+    try:
+        output_path = str(validate_output_path(output_path))
+    except (OSError, OutputPathError) as e:
+        return {"success": False, "error": f"输出路径校验失败: {e}"}
 
     # input_image 接受字符串（单图）或路径列表（多图，图1=基底，图2+=参考）
     input_paths = [input_image] if isinstance(input_image, str) else list(input_image)
@@ -351,19 +375,26 @@ def _edit_core(
 
     if image_url:
         _safe_print(f"{tag} 下载图片 from: {image_url}")
-        # follow_redirects=True 是 gen.py 修过的 301 掉图坑，别去掉
-        img_resp = httpx.get(image_url, timeout=60, follow_redirects=True)
-        img_resp.raise_for_status()
-        out_bytes = img_resp.content
+        # 保持重定向，同时由 validate_image_response 逐块执行大小与 PNG 校验。
+        try:
+            with httpx.stream("GET", image_url, timeout=60, follow_redirects=True) as img_resp:
+                img_resp.raise_for_status()
+                out_bytes = validate_image_response(img_resp)
+        except (httpx.HTTPError, ImageResponseError) as e:
+            return {"success": False, "error": f"图片下载校验失败: {e}"}
     elif b64_data:
         _safe_print(f"{tag} 解码 base64 图片...")
-        out_bytes = base64.b64decode(b64_data)
+        try:
+            out_bytes = validate_image_bytes(base64.b64decode(b64_data, validate=True))
+        except (binascii.Error, ValueError, ImageResponseError) as e:
+            return {"success": False, "error": f"base64 图片校验失败: {e}"}
     else:
         return {"success": False, "error": f"API 响应中未找到图片数据: {data}"}
 
-    out = Path(output_path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_bytes(out_bytes)
+    try:
+        out = atomic_write_image(output_path, out_bytes)
+    except (OSError, OutputPathError, ImageResponseError) as e:
+        return {"success": False, "error": f"图片写入失败: {e}"}
 
     size_kb = len(out_bytes) / 1024
     _safe_print(f"{tag} 编辑完成，大小 {size_kb:.0f}KB -> {out}")

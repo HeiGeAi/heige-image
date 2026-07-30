@@ -186,7 +186,7 @@ python3 scripts/render.py templates/cover-clean.html --node "#cover" --scale 2 -
 **首次用要装依赖**（脚本检测到没装会再提示一遍）：
 
 ```bash
-pip install playwright && playwright install chromium
+pip install -r requirements.txt && playwright install chromium
 ```
 
 **headless 已焊好的坑**：脚本默认带 `--use-angle=swiftshader`，否则 SVG / WebGL 滤镜在无头模式下会截成空白。截图前等 `document.fonts.ready` 再多停 800ms，避开截到 fallback 字体那一帧。这两个坑学的 guizang，已经焊进 render.py，调用方不用管。
@@ -277,7 +277,7 @@ python3 scripts/edit.py --batch tasks.json --workers 2
 ]
 ```
 
-细节：单图走 multipart 的 `image` 字段，多图走多个 `image[]` 字段；支持 jpg/jpeg/png/webp/gif，单张 < 10MB；下载带 `follow_redirects=True` 防 301 掉图；比例三桶规则和 gen.py 相同。
+细节：单图走 multipart 的 `image` 字段，多图走多个 `image[]` 字段；输入支持 jpg/jpeg/png/webp/gif，单张 < 10MB；输出只接受完整 PNG，下载带有界流式读取和重定向，比例三桶规则和 gen.py 相同。
 
 ---
 
@@ -312,7 +312,7 @@ API 引擎烧的是真额度，两道护栏卡死：
 
 **各自需要什么**：
 
-- 版式引擎要 Playwright + chromium（`pip install playwright && playwright install chromium`），装一次到处用，不要 API key。
+- 版式引擎要 Playwright + chromium（`pip install -r requirements.txt && playwright install chromium`），装一次到处用，不要 API key。
 - API 引擎要一把能用的 key（自己配 base_url + key，接任意 OpenAI 兼容 API，国内可选 gptx.cc 这个渠道）。没 key 设计脑前三步照跑，能交付规格文件，就是出不了图。
 
 **还是不做**：
