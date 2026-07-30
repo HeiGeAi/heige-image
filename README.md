@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.1.0-F5A8B8)
+![Version](https://img.shields.io/badge/version-1.1.1-F5A8B8)
 ![Claude Skill](https://img.shields.io/badge/Claude-Skill-FBF3EC)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
@@ -55,10 +55,10 @@ git clone https://github.com/HeiGeAi/heige-image.git ~/.claude/skills/heige-imag
 
 ```bash
 # 版式渲染引擎 render.py（免费、不要 key）需要 Playwright
-pip install playwright && playwright install chromium
+pip install -r requirements.txt && playwright install chromium
 
 # API 引擎 gen.py（文生图）和 edit.py（图生图）需要 httpx
-pip install httpx
+pip install -r requirements.txt
 ```
 
 只想用免费版式图，装 Playwright 就够，连 API key 都不用配。
@@ -125,6 +125,8 @@ python3 scripts/gen.py --batch tasks.json --workers 2
 
 比例只有三个真实桶：横→1536×1024、竖→1024×1536、方→1024×1024，比例参数是构图意图不是像素。
 
+API 返回值只接受完整 PNG。下载按 20 MiB 上限流式读取，Content-Type、PNG 结构、CRC、像素流和输出路径全部校验后才原子落盘。
+
 **图生图 / 图片编辑（改已有的图，走 API 引擎）**
 
 单图编辑，上传一张图 + 一句改法：
@@ -166,8 +168,8 @@ Install by cloning into your Claude Code skill directory:
 
 ```bash
 git clone https://github.com/HeiGeAi/heige-image.git ~/.claude/skills/heige-image
-pip install playwright && playwright install chromium   # for render.py
-pip install httpx                                        # for gen.py
+pip install -r requirements.txt
+playwright install chromium                              # for render.py
 ```
 
 The free layout engine needs only Playwright, no API key at all.
