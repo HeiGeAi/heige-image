@@ -13,6 +13,8 @@ outimage/*.webp
 prompts/*.md
 !prompts/01-*.md
 !prompts/.gitkeep
+# 本地历史规格存档（旧签名时代），永不进仓库
+prompts/archive/
 
 # Python 缓存
 __pycache__/
