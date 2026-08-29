@@ -66,6 +66,7 @@ try:
         ImageResponseError,
         OutputPathError,
         atomic_write_image,
+        extract_image_result,
         validate_image_bytes,
         validate_image_response,
         validate_output_path,
@@ -75,6 +76,7 @@ except ImportError:
         ImageResponseError,
         OutputPathError,
         atomic_write_image,
+        extract_image_result,
         validate_image_bytes,
         validate_image_response,
         validate_output_path,
@@ -376,9 +378,10 @@ def _generate_core(
         return {"success": False, "error": f"重试 {max_retries} 次仍然失败。最后错误: {last_error}"}
 
     # 解析响应：优先 url，其次 b64_json
-    data = resp.json()
-    image_url = data.get("data", [{}])[0].get("url")
-    b64_data = data.get("data", [{}])[0].get("b64_json")
+    try:
+        image_url, b64_data = extract_image_result(resp)
+    except ImageResponseError as e:
+        return {"success": False, "error": f"API 响应格式错误: {e}"}
 
     if image_url:
         _safe_print(f"{tag} 下载图片 from: {image_url}")
@@ -395,9 +398,6 @@ def _generate_core(
             image_bytes = validate_image_bytes(base64.b64decode(b64_data, validate=True))
         except (binascii.Error, ValueError, ImageResponseError) as e:
             return {"success": False, "error": f"base64 图片校验失败: {e}"}
-    else:
-        return {"success": False, "error": f"API 响应中未找到图片数据: {data}"}
-
     try:
         out = atomic_write_image(output_path, image_bytes)
     except (OSError, OutputPathError, ImageResponseError) as e:

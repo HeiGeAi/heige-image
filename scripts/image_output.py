@@ -32,6 +32,35 @@ class OutputPathError(ValueError):
     """The requested output path is unsafe."""
 
 
+def extract_image_result(response) -> tuple[str | None, str | None]:
+    """Extract a URL or base64 payload from a successful image API response."""
+    try:
+        payload = response.json()
+    except Exception as exc:
+        raise ImageResponseError("HTTP 200 响应不是有效 JSON") from exc
+    if not isinstance(payload, dict):
+        raise ImageResponseError("HTTP 200 JSON 必须是对象")
+
+    items = payload.get("data")
+    if not isinstance(items, list) or not items:
+        raise ImageResponseError("HTTP 200 JSON 的 data 必须是非空数组")
+    item = items[0]
+    if not isinstance(item, dict):
+        raise ImageResponseError("HTTP 200 JSON 的 data[0] 必须是对象")
+
+    image_url = item.get("url")
+    b64_data = item.get("b64_json")
+    if image_url is not None and not isinstance(image_url, str):
+        raise ImageResponseError("HTTP 200 JSON 的 url 必须是字符串")
+    if b64_data is not None and not isinstance(b64_data, str):
+        raise ImageResponseError("HTTP 200 JSON 的 b64_json 必须是字符串")
+    image_url = image_url.strip() if image_url else None
+    b64_data = b64_data.strip() if b64_data else None
+    if not image_url and not b64_data:
+        raise ImageResponseError("HTTP 200 JSON 未包含非空 url 或 b64_json")
+    return image_url, b64_data
+
+
 def _validate_png(data: bytes) -> None:
     if not data.startswith(_PNG_MAGIC):
         raise ImageResponseError("响应内容不是有效的 PNG 图片")
@@ -162,11 +191,24 @@ def validate_output_path(output_path: str | Path) -> Path:
         raise OutputPathError(f"输出路径不能是符号链接: {requested}")
 
     absolute_parent = Path(os.path.abspath(requested.parent))
-    if absolute_parent.resolve(strict=False) != absolute_parent:
-        raise OutputPathError(f"输出父目录不能包含符号链接: {requested.parent}")
+    resolved_parent = absolute_parent.resolve(strict=False)
+    if resolved_parent != absolute_parent:
+        allowed_system_alias = False
+        for alias_name in ("/tmp", "/var/tmp"):
+            alias = Path(alias_name)
+            try:
+                relative = absolute_parent.relative_to(alias)
+                canonical_alias = alias.resolve(strict=True)
+            except (OSError, ValueError):
+                continue
+            if canonical_alias != alias and resolved_parent == canonical_alias / relative:
+                allowed_system_alias = True
+                break
+        if not allowed_system_alias:
+            raise OutputPathError(f"输出父目录不能包含符号链接: {requested.parent}")
     absolute_parent.mkdir(parents=True, exist_ok=True)
     real_parent = absolute_parent.resolve(strict=True)
-    if real_parent != absolute_parent:
+    if real_parent != resolved_parent:
         raise OutputPathError(f"输出父目录不能包含符号链接: {requested.parent}")
     if not real_parent.is_dir():
         raise OutputPathError(f"输出父目录不是目录: {real_parent}")

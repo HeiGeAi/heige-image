@@ -2,6 +2,7 @@ import os
 import struct
 import tempfile
 import unittest
+import uuid
 import zlib
 from pathlib import Path
 from unittest import mock
@@ -11,6 +12,7 @@ from scripts.image_output import (
     OutputPathError,
     atomic_write_image,
     validate_image_response,
+    validate_output_path,
 )
 
 
@@ -96,6 +98,22 @@ class ImageResponseTests(unittest.TestCase):
 
 
 class AtomicOutputTests(unittest.TestCase):
+    def test_accepts_macos_tmp_alias(self):
+        requested = Path("/tmp") / f"heige-image-{uuid.uuid4().hex}.png"
+
+        output = validate_output_path(requested)
+
+        self.assertEqual(output.parent, Path("/tmp").resolve(strict=True))
+        self.assertEqual(output.name, requested.name)
+
+    def test_accepts_macos_var_tmp_alias(self):
+        requested = Path("/var/tmp") / f"heige-image-{uuid.uuid4().hex}.png"
+
+        output = validate_output_path(requested)
+
+        self.assertEqual(output.parent, Path("/var/tmp").resolve(strict=True))
+        self.assertEqual(output.name, requested.name)
+
     def test_rejects_symlink_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             parent = Path(tmp).resolve()
