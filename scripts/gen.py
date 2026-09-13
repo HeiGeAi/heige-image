@@ -375,10 +375,17 @@ def _generate_core(
     else:
         return {"success": False, "error": f"重试 {max_retries} 次仍然失败。最后错误: {last_error}"}
 
-    # 解析响应：优先 url，其次 b64_json
-    data = resp.json()
-    image_url = data.get("data", [{}])[0].get("url")
-    b64_data = data.get("data", [{}])[0].get("b64_json")
+    # 解析响应：优先 url，其次 b64_json。
+    # 200 但响应体非 JSON（中转网关 HTML 错误页）或 data 为空/结构异常时，统一失败返回，不裸抛 traceback。
+    try:
+        data = resp.json()
+    except ValueError:
+        return {"success": False, "error": f"API 响应体不是有效 JSON: {resp.text[:200]}"}
+    items = data.get("data") if isinstance(data, dict) else None
+    if not isinstance(items, list) or not items or not isinstance(items[0], dict):
+        return {"success": False, "error": f"API 响应缺少有效的 data 列表: {str(data)[:200]}"}
+    image_url = items[0].get("url")
+    b64_data = items[0].get("b64_json")
 
     if image_url:
         _safe_print(f"{tag} 下载图片 from: {image_url}")
