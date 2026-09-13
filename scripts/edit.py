@@ -343,6 +343,12 @@ def _edit_core(
             last_error = f"连接失败: {e}"
             _safe_print(f"{tag} 连接失败: {e}", file=sys.stderr)
             continue
+        except httpx.HTTPError as e:
+            # ReadError / RemoteProtocolError / DecodeError 等其余网络异常同样重试，
+            # 避免批量模式下单任务连接重置中断整批。
+            last_error = f"网络异常: {e}"
+            _safe_print(f"{tag} 网络异常: {e}", file=sys.stderr)
+            continue
 
         elapsed = time.time() - t0
 
