@@ -161,13 +161,11 @@ def validate_output_path(output_path: str | Path) -> Path:
     if requested.is_symlink():
         raise OutputPathError(f"输出路径不能是符号链接: {requested}")
 
+    # 父目录允许是符号链接（如 macOS 的 /tmp -> /private/tmp）：解析成真实路径后落盘即可，
+    # 真正要拒的只有最终落点文件本身是 symlink（下方 output.is_symlink() 检查）。
     absolute_parent = Path(os.path.abspath(requested.parent))
-    if absolute_parent.resolve(strict=False) != absolute_parent:
-        raise OutputPathError(f"输出父目录不能包含符号链接: {requested.parent}")
     absolute_parent.mkdir(parents=True, exist_ok=True)
     real_parent = absolute_parent.resolve(strict=True)
-    if real_parent != absolute_parent:
-        raise OutputPathError(f"输出父目录不能包含符号链接: {requested.parent}")
     if not real_parent.is_dir():
         raise OutputPathError(f"输出父目录不是目录: {real_parent}")
 

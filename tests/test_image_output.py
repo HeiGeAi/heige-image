@@ -121,7 +121,8 @@ class AtomicOutputTests(unittest.TestCase):
             self.assertEqual(output.read_bytes(), b"original")
             self.assertEqual(list(Path(tmp).glob(".heige-image-*")), [])
 
-    def test_rejects_symlink_parent_directory(self):
+    def test_resolves_symlink_parent_directory(self):
+        # 符号链接父目录（如 macOS /tmp）不再误拒：解析到真实目录落盘。
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
             outside = root / "outside"
@@ -129,10 +130,17 @@ class AtomicOutputTests(unittest.TestCase):
             linked_parent = root / "linked"
             linked_parent.symlink_to(outside, target_is_directory=True)
 
-            with self.assertRaisesRegex(OutputPathError, "符号链接"):
-                atomic_write_image(linked_parent / "output.png", PNG)
+            out = atomic_write_image(linked_parent / "output.png", PNG)
 
-            self.assertFalse((outside / "output.png").exists())
+            self.assertEqual(out, outside / "output.png")
+            self.assertEqual((outside / "output.png").read_bytes(), PNG)
+
+    def test_accepts_unresolved_tmp_style_output_path(self):
+        # 回归：路径含符号链接层级（未 resolve 的临时目录）也必须可用。
+        with tempfile.TemporaryDirectory() as tmp:
+            out = atomic_write_image(Path(tmp) / "output.png", PNG)
+            self.assertTrue(out.exists())
+            self.assertEqual(out.read_bytes(), PNG)
 
     def test_rejects_non_png_output_extension(self):
         with tempfile.TemporaryDirectory() as tmp:
