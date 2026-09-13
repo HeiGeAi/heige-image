@@ -11,6 +11,7 @@ from scripts.image_output import (
     OutputPathError,
     atomic_write_image,
     validate_image_response,
+    validate_image_url,
 )
 
 
@@ -94,6 +95,28 @@ class ImageResponseTests(unittest.TestCase):
 
         self.assertEqual(response.chunks_read, 0)
 
+
+class ImageUrlGuardTests(unittest.TestCase):
+    def test_rejects_non_https(self):
+        with self.assertRaisesRegex(ImageResponseError, "https"):
+            validate_image_url("http://cdn.example.com/a.png")
+
+    def test_rejects_internal_ip_hosts(self):
+        for url in (
+            "https://127.0.0.1/a.png",
+            "https://10.0.0.5/a.png",
+            "https://172.16.0.1/a.png",
+            "https://192.168.1.1/a.png",
+            "https://169.254.169.254/latest/meta-data",
+            "https://localhost/a.png",
+        ):
+            with self.subTest(url=url):
+                with self.assertRaisesRegex(ImageResponseError, "拒绝"):
+                    validate_image_url(url)
+
+    def test_allows_public_https_url(self):
+        url = "https://cdn.example.com/images/a.png?sig=secret"
+        self.assertEqual(validate_image_url(url), url)
 
 class AtomicOutputTests(unittest.TestCase):
     def test_rejects_symlink_output(self):

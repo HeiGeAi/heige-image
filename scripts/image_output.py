@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import struct
 import tempfile
 import zlib
 from pathlib import Path
+from urllib.parse import urlsplit
 
 
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
@@ -121,6 +123,31 @@ def validate_image_bytes(
 
     _validate_png(data)
     return data
+
+
+def validate_image_url(url: str) -> str:
+    """Reject non-HTTPS and literal internal-IP download URLs before any request (SSRF guard).
+
+    域名不在这里做 DNS 解析（避免额外延迟与解析失败面），只挡字面内网 IP 与本机名。
+    """
+    parts = urlsplit(url)
+    if parts.scheme != "https":
+        raise ImageResponseError(f"图片下载 URL 仅允许 https，已拒绝: {parts.scheme or '(无 scheme)'}")
+    host = parts.hostname
+    if not host:
+        raise ImageResponseError("图片下载 URL 缺少 host")
+    if host.lower() == "localhost":
+        raise ImageResponseError("图片下载 URL 指向本机地址，已拒绝")
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return url
+    if (
+        ip.is_private or ip.is_loopback or ip.is_link_local
+        or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+    ):
+        raise ImageResponseError(f"图片下载 URL 指向内网地址，已拒绝: {host}")
+    return url
 
 
 def validate_image_response(response, *, max_bytes: int = MAX_IMAGE_BYTES) -> bytes:

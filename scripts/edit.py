@@ -72,6 +72,7 @@ try:
         atomic_write_image,
         validate_image_bytes,
         validate_image_response,
+        validate_image_url,
         validate_output_path,
     )
 except ImportError:
@@ -81,6 +82,7 @@ except ImportError:
         atomic_write_image,
         validate_image_bytes,
         validate_image_response,
+        validate_image_url,
         validate_output_path,
     )
 
@@ -390,6 +392,7 @@ def _edit_core(
         _safe_print(f"{tag} 下载图片 from: {image_url}")
         # 保持重定向，同时由 validate_image_response 逐块执行大小与 PNG 校验。
         try:
+            validate_image_url(image_url)
             with httpx.stream("GET", image_url, timeout=60, follow_redirects=True) as img_resp:
                 img_resp.raise_for_status()
                 out_bytes = validate_image_response(img_resp)
