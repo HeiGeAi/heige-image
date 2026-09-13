@@ -125,6 +125,12 @@ def validate_image_bytes(
     return data
 
 
+def redact_url(url: str) -> str:
+    """Strip query and fragment so signed temporary URLs don't leak into logs."""
+    parts = urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}{parts.path}"
+
+
 def validate_image_url(url: str) -> str:
     """Reject non-HTTPS and literal internal-IP download URLs before any request (SSRF guard).
 

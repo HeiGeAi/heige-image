@@ -10,6 +10,7 @@ from scripts.image_output import (
     ImageResponseError,
     OutputPathError,
     atomic_write_image,
+    redact_url,
     validate_image_response,
     validate_image_url,
 )
@@ -117,6 +118,13 @@ class ImageUrlGuardTests(unittest.TestCase):
     def test_allows_public_https_url(self):
         url = "https://cdn.example.com/images/a.png?sig=secret"
         self.assertEqual(validate_image_url(url), url)
+
+    def test_redact_url_strips_query_and_fragment(self):
+        self.assertEqual(
+            redact_url("https://cdn.example.com/a/b.png?sig=secret#frag"),
+            "https://cdn.example.com/a/b.png",
+        )
+
 
 class AtomicOutputTests(unittest.TestCase):
     def test_rejects_symlink_output(self):

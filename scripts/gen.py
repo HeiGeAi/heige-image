@@ -67,6 +67,7 @@ try:
         OutputPathError,
         atomic_write_image,
         validate_image_bytes,
+        redact_url,
         validate_image_response,
         validate_image_url,
         validate_output_path,
@@ -77,6 +78,7 @@ except ImportError:
         OutputPathError,
         atomic_write_image,
         validate_image_bytes,
+        redact_url,
         validate_image_response,
         validate_image_url,
         validate_output_path,
@@ -396,7 +398,7 @@ def _generate_core(
     b64_data = items[0].get("b64_json")
 
     if image_url:
-        _safe_print(f"{tag} 下载图片 from: {image_url}")
+        _safe_print(f"{tag} 下载图片 from: {redact_url(image_url)}")
         # 保持重定向，同时由 validate_image_response 逐块执行大小与 PNG 校验。
         try:
             validate_image_url(image_url)
