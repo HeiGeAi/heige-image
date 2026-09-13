@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.1
+
+### Fixed
+
+- 输出路径校验不再误拒符号链接父目录，macOS 的 /tmp、/var 下 -o 输出恢复可用（父目录解析为真实路径落盘，最终落点文件仍为 symlink 时依旧拒绝）。
+- gen.py / edit.py 的 200 响应解析加防护：响应体非 JSON 或 data 为空/结构异常时统一返回失败信息，不再裸抛 traceback。
+- 重试循环覆盖全部 httpx 网络异常（ReadError、RemoteProtocolError、DecodeError 等），批量模式下不再被单任务连接重置中断整批。
+- 图片下载 URL 加 SSRF 防护：仅允许 https，拒绝字面内网地址与本机名。
+- 日志打印下载 URL 时剥离 query 与 fragment，签名取图凭证不再落入会话或 CI 日志。
+
 ## 2.0.0
 
 - 去掉固定画风预设，改为需求驱动：用户指定 > 配套文件推断 > 风格库默认三级决策链。

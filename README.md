@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-2.0.0-0F766E)
+![Version](https://img.shields.io/badge/version-2.0.1-0F766E)
 ![Claude Skill](https://img.shields.io/badge/Claude-Skill-F6ECE4)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
