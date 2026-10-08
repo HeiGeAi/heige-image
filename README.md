@@ -189,3 +189,7 @@ MIT，Copyright (c) 2026 HeiGeAi (Blake Xu)。详见 [LICENSE](./LICENSE)。
 ## 更多开源工具
 
 本项目属于问问黑哥的开源武器库。全部开源项目的清单、用途和协议，见 [heigeai.com/opensource](https://www.heigeai.com/opensource/)。
+
+### Batch output safety
+
+Generation and edit batches validate all destinations before sending requests. Duplicate destinations, including normalized relative paths and symlink-parent aliases, reject the entire batch. Multi-poster HTML exports prefix filenames with their one-based ordinal (`001-<id>.png`, `002-<id>.png`) so repeated or slug-colliding IDs cannot overwrite earlier screenshots. A single explicitly named output remains unchanged.
