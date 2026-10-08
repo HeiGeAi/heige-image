@@ -212,6 +212,26 @@ def validate_output_path(output_path: str | Path) -> Path:
     return output
 
 
+def preflight_batch_outputs(tasks: list) -> list:
+    """Validate the entire batch before starting any provider request.
+
+    Return copies with canonical destinations so relative and symlink-parent
+    aliases cannot race to overwrite another task's output.
+    """
+    prepared = []
+    seen = set()
+    for index, task in enumerate(tasks):
+        if not isinstance(task, dict) or not task.get("output"):
+            raise OutputPathError(f"任务 #{index + 1} 缺少 output")
+        output = validate_output_path(task["output"])
+        key = os.path.normcase(str(output))
+        if key in seen:
+            raise OutputPathError(f"批量输出路径重复: {output}")
+        seen.add(key)
+        prepared.append({**task, "output": str(output)})
+    return prepared
+
+
 def atomic_write_image(output_path: str | Path, data: bytes) -> Path:
     """Atomically write validated image data without following an output symlink."""
     validate_image_bytes(data)
