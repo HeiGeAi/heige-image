@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import io
 import os
 import struct
 import tempfile
@@ -43,6 +44,8 @@ def _validate_png(data: bytes) -> None:
     width = height = bit_depth = color_type = None
     idat_parts = []
     saw_iend = False
+    saw_palette = False
+    idat_ended = False
     while offset < len(data):
         if offset + 12 > len(data):
             raise ImageResponseError("PNG chunk 被截断")
@@ -71,7 +74,19 @@ def _validate_png(data: bytes) -> None:
                 raise ImageResponseError("PNG 颜色类型或位深无效")
             if compression != 0 or filtering != 0 or interlace != 0:
                 raise ImageResponseError("PNG 仅支持标准非隔行编码")
+        elif kind == b"PLTE":
+            if saw_palette or idat_parts or color_type in {0, 4}:
+                raise ImageResponseError("PNG PLTE 顺序或颜色类型无效")
+            if not length or length % 3 or length > 768:
+                raise ImageResponseError("PNG PLTE 长度无效")
+            if color_type == 3 and length // 3 > 2 ** bit_depth:
+                raise ImageResponseError("PNG 调色板超出位深范围")
+            saw_palette = True
+        elif kind == b"acTL":
+            raise ImageResponseError("PNG 输出不支持动画")
         elif kind == b"IDAT":
+            if idat_ended or (color_type == 3 and not saw_palette):
+                raise ImageResponseError("PNG IDAT 不连续或缺少调色板")
             if width is None:
                 raise ImageResponseError("PNG IDAT 位于 IHDR 之前")
             idat_parts.append(payload)
@@ -84,6 +99,8 @@ def _validate_png(data: bytes) -> None:
             break
         elif kind[:1].isupper() and kind not in {b"PLTE"}:
             raise ImageResponseError(f"PNG 包含未知关键 chunk: {kind!r}")
+        if idat_parts and kind != b"IDAT":
+            idat_ended = True
         offset = end
 
     if not saw_iend:
@@ -101,6 +118,32 @@ def _validate_png(data: bytes) -> None:
         raise ImageResponseError("PNG IDAT 压缩流被截断或包含多余数据")
     if len(decoded) != expected_size:
         raise ImageResponseError("PNG 像素数据长度与 IHDR 不一致")
+    row_size = expected_size // height
+    if any(decoded[offset] > 4 for offset in range(0, expected_size, row_size)):
+        raise ImageResponseError("PNG 扫描行过滤器无效")
+
+
+def _image_decoder():
+    # Lazy import keeps a missing dependency a useful preflight error. Never
+    # toggle Pillow's process-wide settings: batches may decode concurrently.
+    try:
+        from PIL import Image, ImageFile
+    except ImportError as exc:
+        raise ImageResponseError("需要 Pillow 图片解码器，请执行: python -m pip install -r requirements.txt") from exc
+    if ImageFile.LOAD_TRUNCATED_IMAGES:
+        raise ImageResponseError("图片解码器必须关闭 LOAD_TRUNCATED_IMAGES")
+    return Image
+
+
+def _decode_png(data: bytes) -> None:
+    Image = _image_decoder()
+    try:
+        with Image.open(io.BytesIO(data), formats=["PNG"]) as decoded:
+            # Structural, dimension and decompressed-byte limits were checked
+            # before allocation. load(), unlike verify(), decodes every pixel.
+            decoded.load()
+    except (OSError, ValueError, SyntaxError, Image.DecompressionBombError) as exc:
+        raise ImageResponseError("PNG 像素数据无法完整解码") from exc
 
 
 def validate_image_bytes(
@@ -122,6 +165,7 @@ def validate_image_bytes(
             raise ImageResponseError(f"不支持的图片 Content-Type: {content_type}")
 
     _validate_png(data)
+    _decode_png(data)
     return data
 
 
@@ -188,6 +232,10 @@ def validate_image_response(response, *, max_bytes: int = MAX_IMAGE_BYTES) -> by
 
 def validate_output_path(output_path: str | Path) -> Path:
     """Validate and prepare a PNG destination before any paid request."""
+    try:
+        _image_decoder()  # Fail before a provider request if decoding is unavailable.
+    except ImageResponseError as exc:
+        raise OutputPathError(str(exc)) from exc
     requested = Path(output_path).expanduser()
     if requested.suffix.lower() != ".png":
         raise OutputPathError(f"输出文件必须使用 .png 扩展名: {requested}")
@@ -210,6 +258,26 @@ def validate_output_path(output_path: str | Path) -> Path:
     if not os.access(real_parent, os.W_OK | os.X_OK):
         raise OutputPathError(f"输出父目录不可写: {real_parent}")
     return output
+
+
+def preflight_batch_outputs(tasks: list) -> list:
+    """Validate the entire batch before starting any provider request.
+
+    Return copies with canonical destinations so relative and symlink-parent
+    aliases cannot race to overwrite another task's output.
+    """
+    prepared = []
+    seen = set()
+    for index, task in enumerate(tasks):
+        if not isinstance(task, dict) or not task.get("output"):
+            raise OutputPathError(f"任务 #{index + 1} 缺少 output")
+        output = validate_output_path(task["output"])
+        key = os.path.normcase(str(output))
+        if key in seen:
+            raise OutputPathError(f"批量输出路径重复: {output}")
+        seen.add(key)
+        prepared.append({**task, "output": str(output)})
+    return prepared
 
 
 def atomic_write_image(output_path: str | Path, data: bytes) -> Path:

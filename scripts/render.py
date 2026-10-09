@@ -82,6 +82,11 @@ def _slugify(text: str) -> str:
     return cleaned or "poster"
 
 
+def poster_filename(node_id: str, index: int) -> str:
+    """An ordinal makes names unique even for repeated or colliding slugs."""
+    return f"{index + 1:03d}-{_slugify(node_id)}.png"
+
+
 def _png_size(path: Path) -> tuple[int, int] | None:
     """直接读 PNG 文件头拿宽高（IHDR），不依赖 sips / Pillow，零额外依赖。"""
     try:
@@ -208,7 +213,7 @@ def render(
             if single_named:
                 out = Path(output_path)
             else:
-                out = out_dir / f"{_slugify(node_id)}.png"
+                out = out_dir / poster_filename(node_id, i)
             el.screenshot(path=str(out))
             _report(out)
             written.append(str(out))
