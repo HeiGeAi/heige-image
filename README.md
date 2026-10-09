@@ -126,7 +126,7 @@ python3 scripts/gen.py --batch tasks.json --workers 2
 
 比例只有三个真实桶：横→1536×1024、竖→1024×1536、方→1024×1024，比例参数是构图意图不是像素。
 
-API 返回值只接受完整 PNG。下载按 20 MiB 上限流式读取，Content-Type、PNG 结构、CRC、像素流和输出路径全部校验后才原子落盘。
+API 返回值只接受完整 PNG。下载按 20 MiB 上限流式读取，Content-Type、PNG 结构、CRC、扫描行过滤器、完整像素解码和输出路径全部校验后才原子落盘。Pillow 解码器随 requirements.txt 安装；缺少解码器时在请求前报错。输出限静态非隔行 PNG，最多 3200 万像素、128 MiB 解压扫描行数据；JPEG、WebP、GIF 和动画 PNG 不作为输出接受。无效响应或写入失败保留已有成片。
 
 **图生图 / 图片编辑（改已有的图，走 API 引擎）**
 
