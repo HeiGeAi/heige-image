@@ -2,6 +2,7 @@ import base64
 import struct
 import tempfile
 import unittest
+import unicodedata
 import zlib
 from pathlib import Path
 from unittest.mock import patch
@@ -18,6 +19,59 @@ def png(value=0):
 
 
 class BatchRegressionTests(unittest.TestCase):
+    def test_unicode_aliases_follow_destination_filesystem_before_requests(self):
+        for module, batch in ((gen, gen.generate_batch), (edit, edit.edit_batch)):
+            with self.subTest(module=module.__name__), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp).resolve()
+                names = ("é.png", unicodedata.normalize("NFD", "é.png"))
+                probe = root / names[0]
+                probe.write_bytes(b"probe")
+                normalization_insensitive = (root / names[1]).exists()
+                probe.unlink()
+                source = root / "source.png"
+                source.write_bytes(png())
+                tasks = [{"prompt": "p", "input": str(source), "output": str(root / name)}
+                         for name in names]
+                response = httpx.Response(200, json={"data": [{"b64_json": base64.b64encode(png()).decode()}]})
+                with patch.object(module, "_request_once", return_value=response) as request:
+                    results = batch(tasks, "fake", "https://example.test/v1", "fake", workers=1, max_retries=0)
+                self.assertEqual(len(results), 2)
+                if normalization_insensitive:
+                    request.assert_not_called()
+                    self.assertTrue(all(not result["success"] for result in results), results)
+                    self.assertFalse((root / names[0]).exists())
+                else:
+                    self.assertEqual(request.call_count, 2)
+                    self.assertTrue(all(result["success"] for result in results), results)
+                    self.assertTrue(all((root / name).is_file() for name in names))
+                self.assertEqual(list(root.glob(".heige-case-*")), [])
+
+    def test_case_aliases_follow_destination_filesystem_before_requests(self):
+        for module, batch in ((gen, gen.generate_batch), (edit, edit.edit_batch)):
+            with self.subTest(module=module.__name__), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp).resolve()
+                probe = root / "CaseProbe"
+                probe.write_bytes(b"probe")
+                case_insensitive = (root / "cASEpROBE").exists()
+                probe.unlink()
+                source = root / "source.png"
+                source.write_bytes(png())
+                tasks = [{"prompt": "p", "input": str(source), "output": str(root / name)}
+                         for name in ("A.png", "a.png")]
+                response = httpx.Response(200, json={"data": [{"b64_json": base64.b64encode(png()).decode()}]})
+                with patch.object(module, "_request_once", return_value=response) as request:
+                    results = batch(tasks, "fake", "https://example.test/v1", "fake", workers=1, max_retries=0)
+                self.assertEqual(len(results), 2)
+                if case_insensitive:
+                    request.assert_not_called()
+                    self.assertTrue(all(not result["success"] for result in results), results)
+                    self.assertFalse((root / "A.png").exists())
+                else:
+                    self.assertEqual(request.call_count, 2)
+                    self.assertTrue(all(result["success"] for result in results), results)
+                    self.assertTrue(all((root / name).is_file() for name in ("A.png", "a.png")))
+                self.assertEqual(list(root.glob(".heige-case-*")), [])
+
     def test_duplicate_and_aliased_outputs_make_no_requests(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

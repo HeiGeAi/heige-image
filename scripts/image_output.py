@@ -7,6 +7,7 @@ import io
 import os
 import struct
 import tempfile
+import unicodedata
 import zlib
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -268,11 +269,26 @@ def preflight_batch_outputs(tasks: list) -> list:
     """
     prepared = []
     seen = set()
+    directory_rules = {}
     for index, task in enumerate(tasks):
         if not isinstance(task, dict) or not task.get("output"):
             raise OutputPathError(f"任务 #{index + 1} 缺少 output")
         output = validate_output_path(task["output"])
-        key = os.path.normcase(str(output))
+        stat = output.parent.stat()
+        directory = (stat.st_dev, stat.st_ino)
+        if directory not in directory_rules:
+            # Filename equivalence belongs to the destination filesystem, not the OS.
+            with tempfile.NamedTemporaryFile(prefix=".heige-case-é-", dir=output.parent) as probe:
+                probe_path = Path(probe.name)
+                directory_rules[directory] = (
+                    probe_path.with_name(probe_path.name.swapcase()).exists(),
+                    probe_path.with_name(unicodedata.normalize("NFD", probe_path.name)).exists(),
+                )
+        case_insensitive, normalization_insensitive = directory_rules[directory]
+        name = output.name.casefold() if case_insensitive else output.name
+        if normalization_insensitive:
+            name = unicodedata.normalize("NFC", name)
+        key = (directory, name)
         if key in seen:
             raise OutputPathError(f"批量输出路径重复: {output}")
         seen.add(key)
