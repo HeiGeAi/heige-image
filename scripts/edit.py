@@ -75,6 +75,7 @@ try:
         validate_image_response,
         validate_image_url,
         validate_output_path,
+        preflight_batch_outputs,
     )
 except ImportError:
     from image_output import (
@@ -86,6 +87,7 @@ except ImportError:
         validate_image_response,
         validate_image_url,
         validate_output_path,
+        preflight_batch_outputs,
     )
 
 # ---------------------------------------------------------------------------
@@ -463,6 +465,11 @@ def edit_batch(
     workers: int = 0,
     max_retries: int = 3,
 ) -> list:
+    try:
+        tasks = preflight_batch_outputs(tasks)
+    except (OSError, ValueError, TypeError) as exc:
+        return [{"success": False, "index": i, "error": f"批量输出校验失败: {exc}"}
+                for i in range(len(tasks))]
     num_tasks = len(tasks)
 
     if workers <= 0:
