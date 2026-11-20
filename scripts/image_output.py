@@ -36,6 +36,31 @@ class OutputPathError(ValueError):
     """The requested output path is unsafe."""
 
 
+def extract_image_result(response) -> tuple[str | None, str | None]:
+    """Read the image URL or base64 data from a successful API response."""
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise ImageResponseError("API 响应体不是有效 JSON") from exc
+
+    items = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(items, list) or not items or not isinstance(items[0], dict):
+        raise ImageResponseError("API 响应缺少有效的 data 列表")
+
+    image_url = items[0].get("url")
+    b64_data = items[0].get("b64_json")
+    if image_url is not None and not isinstance(image_url, str):
+        raise ImageResponseError("API 响应的 url 必须是字符串")
+    if b64_data is not None and not isinstance(b64_data, str):
+        raise ImageResponseError("API 响应的 b64_json 必须是字符串")
+
+    image_url = image_url.strip() if image_url is not None else ""
+    b64_data = b64_data.strip() if b64_data is not None else ""
+    if not image_url and not b64_data:
+        raise ImageResponseError("API 响应中未找到图片数据")
+    return image_url or None, b64_data or None
+
+
 def _validate_png(data: bytes) -> None:
     if not data.startswith(_PNG_MAGIC):
         raise ImageResponseError("响应内容不是有效的 PNG 图片")
@@ -181,7 +206,10 @@ def validate_image_url(url: str) -> str:
 
     域名不在这里做 DNS 解析（避免额外延迟与解析失败面），只挡字面内网 IP 与本机名。
     """
-    parts = urlsplit(url)
+    try:
+        parts = urlsplit(url)
+    except ValueError as exc:
+        raise ImageResponseError("图片下载 URL 格式无效") from exc
     if parts.scheme != "https":
         raise ImageResponseError(f"图片下载 URL 仅允许 https，已拒绝: {parts.scheme or '(无 scheme)'}")
     host = parts.hostname
