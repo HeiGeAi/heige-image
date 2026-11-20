@@ -10,6 +10,7 @@ from scripts.image_output import (
     ImageResponseError,
     OutputPathError,
     atomic_write_image,
+    extract_image_result,
     redact_url,
     validate_image_response,
     validate_image_url,
@@ -44,6 +45,18 @@ class FakeResponse:
 
 
 class ImageResponseTests(unittest.TestCase):
+    def test_rejects_non_string_provider_fields(self):
+        for field, value in (("url", 123), ("b64_json", [123])):
+            with self.subTest(field=field):
+                response = mock.Mock()
+                response.json.return_value = {"data": [{field: value}]}
+                with self.assertRaisesRegex(ImageResponseError, field):
+                    extract_image_result(response)
+
+    def test_rejects_malformed_download_url(self):
+        with self.assertRaisesRegex(ImageResponseError, "URL"):
+            validate_image_url("https://[")
+
     def test_rejects_non_image_content_type(self):
         response = FakeResponse(PNG, "text/html; charset=utf-8")
 

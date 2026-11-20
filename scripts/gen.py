@@ -66,6 +66,7 @@ try:
         ImageResponseError,
         OutputPathError,
         atomic_write_image,
+        extract_image_result,
         validate_image_bytes,
         redact_url,
         validate_image_response,
@@ -78,6 +79,7 @@ except ImportError:
         ImageResponseError,
         OutputPathError,
         atomic_write_image,
+        extract_image_result,
         validate_image_bytes,
         redact_url,
         validate_image_response,
@@ -387,36 +389,26 @@ def _generate_core(
     else:
         return {"success": False, "error": f"重试 {max_retries} 次仍然失败。最后错误: {last_error}"}
 
-    # 解析响应：优先 url，其次 b64_json。
-    # 200 但响应体非 JSON（中转网关 HTML 错误页）或 data 为空/结构异常时，统一失败返回，不裸抛 traceback。
     try:
-        data = resp.json()
-    except ValueError:
-        return {"success": False, "error": f"API 响应体不是有效 JSON: {resp.text[:200]}"}
-    items = data.get("data") if isinstance(data, dict) else None
-    if not isinstance(items, list) or not items or not isinstance(items[0], dict):
-        return {"success": False, "error": f"API 响应缺少有效的 data 列表: {str(data)[:200]}"}
-    image_url = items[0].get("url")
-    b64_data = items[0].get("b64_json")
+        image_url, b64_data = extract_image_result(resp)
+    except ImageResponseError as e:
+        return {"success": False, "error": str(e)}
 
     if image_url:
-        _safe_print(f"{tag} 下载图片 from: {redact_url(image_url)}")
-        # 保持重定向，同时由 validate_image_response 逐块执行大小与 PNG 校验。
         try:
             validate_image_url(image_url)
+            _safe_print(f"{tag} 下载图片 from: {redact_url(image_url)}")
             with httpx.stream("GET", image_url, timeout=60, follow_redirects=True) as img_resp:
                 img_resp.raise_for_status()
                 image_bytes = validate_image_response(img_resp)
         except (httpx.HTTPError, ImageResponseError) as e:
             return {"success": False, "error": f"图片下载校验失败: {e}"}
-    elif b64_data:
+    else:
         _safe_print(f"{tag} 解码 base64 图片...")
         try:
             image_bytes = validate_image_bytes(base64.b64decode(b64_data, validate=True))
         except (binascii.Error, ValueError, ImageResponseError) as e:
             return {"success": False, "error": f"base64 图片校验失败: {e}"}
-    else:
-        return {"success": False, "error": f"API 响应中未找到图片数据: {data}"}
 
     try:
         out = atomic_write_image(output_path, image_bytes)
