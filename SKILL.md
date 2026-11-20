@@ -330,7 +330,7 @@ API 引擎烧的是真额度，两道护栏卡死：
 
 **各自需要什么**：
 
-- 版式引擎要 Playwright + chromium（`pip install -r requirements.txt && playwright install chromium`），装一次到处用，不要 API key。
+- 脚本需要 Python 3.11+。版式引擎要 Playwright + chromium（`pip install -r requirements.txt && playwright install chromium`），装一次到处用，不要 API key。
 - API 引擎要一把能用的 key（自己配 base_url + key，接任意 OpenAI 兼容 API，国内可选 gptx.cc 这个渠道）。没 key 前四步照跑，能交付设计方案和规格文件，就是出不了图。
 
 **还是不做**：
