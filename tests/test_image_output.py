@@ -10,6 +10,8 @@ from scripts.image_output import (
     ImageResponseError,
     OutputPathError,
     atomic_write_image,
+    decode_base64_image,
+    download_image_bytes,
     extract_image_result,
     redact_url,
     validate_image_response,
@@ -123,10 +125,55 @@ class ImageUrlGuardTests(unittest.TestCase):
             "https://192.168.1.1/a.png",
             "https://169.254.169.254/latest/meta-data",
             "https://localhost/a.png",
+            "https://localhost./a.png",
+            "https://[::ffff:127.0.0.1]/a.png",
         ):
             with self.subTest(url=url):
                 with self.assertRaisesRegex(ImageResponseError, "拒绝"):
                     validate_image_url(url)
+
+    def test_rejects_invalid_ports(self):
+        for url in ("https://cdn.example.com:0/a.png", "https://cdn.example.com:99999/a.png"):
+            with self.subTest(url=url), self.assertRaises(ImageResponseError):
+                validate_image_url(url)
+
+    def test_download_blocks_redirect_to_internal_or_http_before_request(self):
+        import httpx
+
+        for redirect_target in (
+            "http://127.0.0.1:8080/internal.png",
+            "https://169.254.169.254/latest/meta-data",
+            "http://cdn.example.com/downgraded.png",
+        ):
+            seen_urls = []
+
+            def handler(request: httpx.Request) -> httpx.Response:
+                seen_urls.append(str(request.url))
+                return httpx.Response(302, headers={"Location": redirect_target})
+
+            transport = httpx.MockTransport(handler)
+            with self.subTest(target=redirect_target), self.assertRaises(ImageResponseError):
+                download_image_bytes(
+                    "https://cdn.example.com/start.png",
+                    client_factory=lambda: httpx.Client(transport=transport, follow_redirects=False),
+                )
+            self.assertEqual(seen_urls, ["https://cdn.example.com/start.png"])
+
+        def ok_handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/start.png":
+                return httpx.Response(302, headers={"Location": "/final.png"})
+            return httpx.Response(200, headers={"Content-Type": "image/png"}, content=PNG)
+
+        ok_transport = httpx.MockTransport(ok_handler)
+        data = download_image_bytes(
+            "https://cdn.example.com/start.png",
+            client_factory=lambda: httpx.Client(transport=ok_transport, follow_redirects=False),
+        )
+        self.assertEqual(data, PNG)
+
+    def test_decode_base64_image_enforces_limit_before_decode(self):
+        with self.assertRaisesRegex(ImageResponseError, "过大"):
+            decode_base64_image("A" * 100, max_bytes=16)
 
     def test_allows_public_https_url(self):
         url = "https://cdn.example.com/images/a.png?sig=secret"

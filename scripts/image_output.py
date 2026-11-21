@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import ipaddress
 import io
 import os
@@ -10,7 +12,7 @@ import tempfile
 import unicodedata
 import zlib
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
@@ -208,25 +210,70 @@ def validate_image_url(url: str) -> str:
     """
     try:
         parts = urlsplit(url)
+        host = parts.hostname
+        port = parts.port
     except ValueError as exc:
         raise ImageResponseError("图片下载 URL 格式无效") from exc
     if parts.scheme != "https":
         raise ImageResponseError(f"图片下载 URL 仅允许 https，已拒绝: {parts.scheme or '(无 scheme)'}")
-    host = parts.hostname
-    if not host:
-        raise ImageResponseError("图片下载 URL 缺少 host")
-    if host.lower() == "localhost":
+    if not host or port == 0:
+        raise ImageResponseError("图片下载 URL 缺少 host 或端口无效")
+    if host.rstrip(".").lower() == "localhost":
         raise ImageResponseError("图片下载 URL 指向本机地址，已拒绝")
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:
         return url
+    check_ip = getattr(ip, "ipv4_mapped", None) or ip
     if (
-        ip.is_private or ip.is_loopback or ip.is_link_local
-        or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+        check_ip.is_private or check_ip.is_loopback or check_ip.is_link_local
+        or check_ip.is_reserved or check_ip.is_multicast or check_ip.is_unspecified
     ):
         raise ImageResponseError(f"图片下载 URL 指向内网地址，已拒绝: {host}")
     return url
+
+
+def decode_base64_image(b64_data: str, *, max_bytes: int = MAX_IMAGE_BYTES) -> bytes:
+    """Bound and validate a base64-encoded PNG before full allocation."""
+    max_encoded_len = ((max_bytes + 2) // 3) * 4
+    if len(b64_data) > max_encoded_len:
+        raise ImageResponseError(f"图片响应过大，最大允许 {max_bytes} 字节")
+    try:
+        raw = base64.b64decode(b64_data, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ImageResponseError(f"base64 数据无效: {exc}") from exc
+    return validate_image_bytes(raw, max_bytes=max_bytes)
+
+
+def download_image_bytes(
+    url: str,
+    *,
+    timeout: float = 60,
+    max_redirects: int = 5,
+    max_bytes: int = MAX_IMAGE_BYTES,
+    client_factory=None,
+) -> bytes:
+    """Download a PNG while validating every redirect hop against the SSRF guard."""
+    if client_factory is None:
+        import httpx
+
+        def client_factory():
+            return httpx.Client(timeout=timeout, follow_redirects=False)
+
+    current_url = url
+    with client_factory() as client:
+        for _ in range(max_redirects + 1):
+            validate_image_url(current_url)
+            with client.stream("GET", current_url, follow_redirects=False) as img_resp:
+                if img_resp.is_redirect:
+                    location = img_resp.headers.get("Location")
+                    if not location:
+                        raise ImageResponseError("图片下载重定向缺少 Location")
+                    current_url = urljoin(current_url, location.strip())
+                    continue
+                img_resp.raise_for_status()
+                return validate_image_response(img_resp, max_bytes=max_bytes)
+    raise ImageResponseError(f"图片下载重定向超过上限 ({max_redirects})")
 
 
 def validate_image_response(response, *, max_bytes: int = MAX_IMAGE_BYTES) -> bytes:

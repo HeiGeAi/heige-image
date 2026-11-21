@@ -66,6 +66,8 @@ try:
         ImageResponseError,
         OutputPathError,
         atomic_write_image,
+        decode_base64_image,
+        download_image_bytes,
         extract_image_result,
         validate_image_bytes,
         redact_url,
@@ -79,6 +81,8 @@ except ImportError:
         ImageResponseError,
         OutputPathError,
         atomic_write_image,
+        decode_base64_image,
+        download_image_bytes,
         extract_image_result,
         validate_image_bytes,
         redact_url,
@@ -148,9 +152,15 @@ def _load_config() -> dict:
     if not CONFIG_FILE.exists():
         return {}
     try:
-        return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        loaded = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        return loaded if isinstance(loaded, dict) else {}
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError):
         return {}
+
+
+def _config_str(config: dict, key: str) -> str:
+    val = config.get(key)
+    return val.strip() if isinstance(val, str) else ""
 
 
 def resolve_api_key(cli_key: str | None = None, config: dict | None = None) -> str:
@@ -164,7 +174,7 @@ def resolve_api_key(cli_key: str | None = None, config: dict | None = None) -> s
 
     if config is None:
         config = _load_config()
-    file_key = (config.get("api_key") or "").strip()
+    file_key = _config_str(config, "api_key")
     if file_key:
         return file_key
 
@@ -189,7 +199,7 @@ def resolve_base_url(cli_base_url: str | None = None, config: dict | None = None
     else:
         if config is None:
             config = _load_config()
-        base = (config.get("base_url") or "").strip() or DEFAULT_BASE_URL
+        base = _config_str(config, "base_url") or DEFAULT_BASE_URL
     # 去掉末尾斜杠，拼接时统一加
     return base.rstrip("/")
 
@@ -203,7 +213,7 @@ def resolve_model(cli_model: str | None = None, config: dict | None = None) -> s
         return env_model
     if config is None:
         config = _load_config()
-    return (config.get("model") or "").strip() or DEFAULT_MODEL
+    return _config_str(config, "model") or DEFAULT_MODEL
 
 
 # ---------------------------------------------------------------------------
@@ -398,15 +408,13 @@ def _generate_core(
         try:
             validate_image_url(image_url)
             _safe_print(f"{tag} 下载图片 from: {redact_url(image_url)}")
-            with httpx.stream("GET", image_url, timeout=60, follow_redirects=True) as img_resp:
-                img_resp.raise_for_status()
-                image_bytes = validate_image_response(img_resp)
+            image_bytes = download_image_bytes(image_url, timeout=60)
         except (httpx.HTTPError, ImageResponseError) as e:
             return {"success": False, "error": f"图片下载校验失败: {e}"}
     else:
         _safe_print(f"{tag} 解码 base64 图片...")
         try:
-            image_bytes = validate_image_bytes(base64.b64decode(b64_data, validate=True))
+            image_bytes = decode_base64_image(b64_data)
         except (binascii.Error, ValueError, ImageResponseError) as e:
             return {"success": False, "error": f"base64 图片校验失败: {e}"}
 
@@ -498,7 +506,11 @@ def generate_batch(
             for i, t in enumerate(tasks)
         }
         for future in as_completed(futures):
-            idx, result = future.result()
+            idx = futures[future]
+            try:
+                _, result = future.result()
+            except Exception as exc:
+                result = {"success": False, "index": idx, "error": f"任务异常: {exc}"}
             results[idx] = result
             status = "OK" if result["success"] else "FAIL"
             _safe_print(f"[heige-image 批量] 任务 #{idx + 1} {status}")
@@ -599,7 +611,7 @@ def main():
 
         try:
             tasks = json.loads(batch_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
             print(f"错误: 解析批量任务文件失败: {e}", file=sys.stderr)
             sys.exit(1)
 
