@@ -591,6 +591,9 @@ def main():
             sys.exit(1)
 
         for i, t in enumerate(tasks):
+            if not isinstance(t, dict):
+                print(f"错误: 任务 #{i + 1} 必须是 JSON 对象", file=sys.stderr)
+                sys.exit(1)
             for field in ("input", "prompt", "output"):
                 if field not in t:
                     print(f"错误: 任务 #{i + 1} 缺少必填字段 '{field}'", file=sys.stderr)
@@ -605,6 +608,10 @@ def main():
                     file=sys.stderr,
                 )
                 sys.exit(1)
+            for field in ("prompt", "output"):
+                if not isinstance(t[field], str) or not t[field].strip():
+                    print(f"错误: 任务 #{i + 1} 的 '{field}' 必须是非空字符串", file=sys.stderr)
+                    sys.exit(1)
             ar = t.get("aspect_ratio")
             if ar is not None and ar not in VALID_ASPECT_RATIOS:
                 print(
