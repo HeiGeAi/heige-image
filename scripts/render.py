@@ -131,8 +131,11 @@ def render(
     返回: 实际写出的 PNG 路径列表。
     """
     html_file = Path(html_path).resolve()
-    if not html_file.exists():
-        print(f"错误: HTML 文件不存在: {html_file}", file=sys.stderr)
+    if not html_file.is_file():
+        print(f"错误: HTML 文件不存在或不是普通文件: {html_file}", file=sys.stderr)
+        sys.exit(1)
+    if settle_ms < 0:
+        print("错误: --settle-ms 不能为负数", file=sys.stderr)
         sys.exit(1)
 
     url = html_file.as_uri()  # file:// 绝对路径，Windows / macOS 都对
@@ -140,85 +143,85 @@ def render(
 
     with sync_playwright() as p:
         browser = p.chromium.launch(args=CHROMIUM_ARGS)
-        # 给一个大点的视口 + 高像素比，版式 CSS 里尺寸是焊死的，视口只要够大别裁掉就行
-        page = browser.new_page(
-            viewport={"width": 1920, "height": 1080},
-            device_scale_factor=scale,
-        )
-
-        print(f"[heige-render] 载入 {url} | 像素比 {scale}x")
-        # networkidle 等远程 webfont 拉完；拉不到也无所谓，字体栈里有 PingFang SC 兜底
-        page.goto(url, wait_until="networkidle")
-        # 关键一步：确保浏览器拿到的字体真的就绪，再等一会铺纹理，别截到 fallback 那一帧
         try:
-            page.evaluate("document.fonts && document.fonts.ready")
-        except Exception:
-            pass
-        page.wait_for_timeout(settle_ms)
-
-        # ---- 截法 1：指定了单个节点 ----
-        if node_selector:
-            el = page.query_selector(node_selector)
-            if el is None:
-                browser.close()
-                print(f"错误: 页面里找不到节点 {node_selector}", file=sys.stderr)
-                sys.exit(1)
-            out = Path(output_path) if output_path else OUTPUT_DIR / f"{html_file.stem}.png"
-            out.parent.mkdir(parents=True, exist_ok=True)
-            el.screenshot(path=str(out))
-            _report(out)
-            written.append(str(out))
-            browser.close()
-            return written
-
-        # ---- 截法 2：整页兜底 ----
-        if full_page:
-            out = Path(output_path) if output_path else OUTPUT_DIR / f"{html_file.stem}.png"
-            out.parent.mkdir(parents=True, exist_ok=True)
-            page.screenshot(path=str(out), full_page=True)
-            _report(out)
-            written.append(str(out))
-            browser.close()
-            return written
-
-        # ---- 截法 3：默认抓所有 section.poster 逐个出 ----
-        posters = page.query_selector_all(DEFAULT_POSTER_SELECTOR)
-        if not posters:
-            # 模板里没标 .poster，给清晰提示并回退到整页，免得 agent 一脸懵
-            print(
-                f"[heige-render] 没找到 {DEFAULT_POSTER_SELECTOR} 节点，回退截整页。\n"
-                "  约定：每张版式图包一个 <section class=\"poster ...\"> 才能逐张出图。",
-                file=sys.stderr,
+            # 给一个大点的视口 + 高像素比，版式 CSS 里尺寸是焊死的，视口只要够大别裁掉就行
+            page = browser.new_page(
+                viewport={"width": 1920, "height": 1080},
+                device_scale_factor=scale,
             )
-            out = Path(output_path) if output_path else OUTPUT_DIR / f"{html_file.stem}.png"
-            out.parent.mkdir(parents=True, exist_ok=True)
-            page.screenshot(path=str(out), full_page=True)
-            _report(out)
-            written.append(str(out))
-            browser.close()
-            return written
 
-        # -o 怎么解释：只有一个节点时当成文件名；多个节点时当成目录（每张按 id 命名）
-        single_named = output_path is not None and len(posters) == 1
-        if single_named:
-            out_dir = Path(output_path).parent
-        elif output_path:
-            out_dir = Path(output_path)  # 多节点：-o 是目录
-        else:
-            out_dir = OUTPUT_DIR
-        out_dir.mkdir(parents=True, exist_ok=True)
+            print(f"[heige-render] 载入 {url} | 像素比 {scale}x")
+            # networkidle 等远程 webfont 拉完；拉不到也无所谓，字体栈里有 PingFang SC 兜底
+            page.goto(url, wait_until="networkidle")
+            # 关键一步：确保浏览器拿到的字体真的就绪，再等一会铺纹理，别截到 fallback 那一帧
+            try:
+                page.evaluate("document.fonts && document.fonts.ready")
+            except Exception:
+                pass
+            page.wait_for_timeout(settle_ms)
 
-        for i, el in enumerate(posters):
-            node_id = el.get_attribute("id") or f"{html_file.stem}-{i + 1}"
+            # ---- 截法 1：指定了单个节点 ----
+            if node_selector:
+                el = page.query_selector(node_selector)
+                if el is None:
+                    print(f"错误: 页面里找不到节点 {node_selector}", file=sys.stderr)
+                    sys.exit(1)
+                out = Path(output_path) if output_path else OUTPUT_DIR / f"{html_file.stem}.png"
+                out.parent.mkdir(parents=True, exist_ok=True)
+                el.screenshot(path=str(out))
+                _report(out)
+                written.append(str(out))
+                return written
+
+            # ---- 截法 2：整页兜底 ----
+            if full_page:
+                out = Path(output_path) if output_path else OUTPUT_DIR / f"{html_file.stem}.png"
+                out.parent.mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(out), full_page=True)
+                _report(out)
+                written.append(str(out))
+                return written
+
+            # ---- 截法 3：默认抓所有 section.poster 逐个出 ----
+            posters = page.query_selector_all(DEFAULT_POSTER_SELECTOR)
+            if not posters:
+                # 模板里没标 .poster，给清晰提示并回退到整页，免得 agent 一脸懵
+                print(
+                    f"[heige-render] 没找到 {DEFAULT_POSTER_SELECTOR} 节点，回退截整页。\n"
+                    "  约定：每张版式图包一个 <section class=\"poster ...\"> 才能逐张出图。",
+                    file=sys.stderr,
+                )
+                out = Path(output_path) if output_path else OUTPUT_DIR / f"{html_file.stem}.png"
+                out.parent.mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(out), full_page=True)
+                _report(out)
+                written.append(str(out))
+                return written
+
+            # -o 怎么解释：单节点且 -o 不是已有目录/目录路径时当文件名；否则当目录（按 id 命名）
+            output_is_dir = output_path is not None and (
+                Path(output_path).is_dir() or str(output_path).endswith(("/", "\\"))
+            )
+            single_named = output_path is not None and len(posters) == 1 and not output_is_dir
             if single_named:
-                out = Path(output_path)
+                out_dir = Path(output_path).parent
+            elif output_path:
+                out_dir = Path(output_path)
             else:
-                out = out_dir / poster_filename(node_id, i)
-            el.screenshot(path=str(out))
-            _report(out)
-            written.append(str(out))
+                out_dir = OUTPUT_DIR
+            out_dir.mkdir(parents=True, exist_ok=True)
 
-        browser.close()
+            for i, el in enumerate(posters):
+                node_id = el.get_attribute("id") or f"{html_file.stem}-{i + 1}"
+                if single_named:
+                    out = Path(output_path)
+                else:
+                    out = out_dir / poster_filename(node_id, i)
+                el.screenshot(path=str(out))
+                _report(out)
+                written.append(str(out))
+        finally:
+            browser.close()
 
     return written
 

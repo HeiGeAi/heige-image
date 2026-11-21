@@ -28,3 +28,19 @@ class RenderFilenameTests(unittest.TestCase):
             self.assertEqual(len(paths), 3)
             self.assertEqual(len(set(paths)), 3)
             self.assertTrue(all(Path(path).is_file() for path in paths))
+
+    def test_single_poster_writes_inside_existing_output_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            html = Path(tmp) / "page.html"
+            html.write_text("<html></html>")
+            out_dir = Path(tmp) / "existing-dir"
+            out_dir.mkdir()
+            poster = MagicMock()
+            poster.get_attribute.return_value = "cover"
+            poster.screenshot.side_effect = lambda *, path: Path(path).write_bytes(b"fixture")
+            with patch.object(render, "sync_playwright") as playwright, patch.object(render, "_report"):
+                page = playwright.return_value.__enter__.return_value.chromium.launch.return_value.new_page.return_value
+                page.query_selector_all.return_value = [poster]
+                paths = render.render(str(html), output_path=str(out_dir))
+            self.assertEqual(paths, [str(out_dir / "001-cover.png")])
+            self.assertTrue((out_dir / "001-cover.png").is_file())

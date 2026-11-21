@@ -111,3 +111,29 @@ class BatchRegressionTests(unittest.TestCase):
                 self.assertEqual(request.call_count, 2)
                 self.assertTrue(all(r["success"] for r in results), results)
                 self.assertEqual([Path(r["path"]).read_bytes() for r in results], [png(0), png(1)])
+
+    def test_worker_exception_keeps_complete_batch_summary(self):
+        for module, core_name, batch in ((gen, "_generate_core", gen.generate_batch), (edit, "_edit_core", edit.edit_batch)):
+            with self.subTest(module=module.__name__), tempfile.TemporaryDirectory() as tmp:
+                tasks = [{"prompt": "p", "input": "unused.png", "output": str(Path(tmp).resolve() / f"{i}.png")} for i in range(2)]
+                with patch.object(module, core_name, side_effect=[RuntimeError("bad worker"), {"success": True, "path": "ok.png"}]):
+                    results = batch(tasks, "fake", "https://example.test/v1", "fake", workers=1)
+                self.assertEqual([r["success"] for r in results], [False, True])
+                self.assertEqual([r["index"] for r in results], [0, 1])
+
+    def test_malformed_config_does_not_crash_resolvers(self):
+        import os
+
+        for module in (gen, edit):
+            with self.subTest(module=module.__name__), tempfile.TemporaryDirectory() as tmp:
+                cfg_file = Path(tmp) / "config.json"
+                for raw in (b"[]", b"\xff\xfe", b'{"api_key": 123, "base_url": 456, "model": []}'):
+                    cfg_file.write_bytes(raw)
+                    with (
+                        patch.object(module, "CONFIG_FILE", cfg_file),
+                        patch.dict(os.environ, {}, clear=True),
+                    ):
+                        cfg = module._load_config()
+                        self.assertIsInstance(cfg, dict)
+                        self.assertEqual(module.resolve_base_url(None, cfg), module.DEFAULT_BASE_URL)
+                        self.assertEqual(module.resolve_model(None, cfg), module.DEFAULT_MODEL)
